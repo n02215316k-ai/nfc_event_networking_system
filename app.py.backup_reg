@@ -1,0 +1,1121 @@
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from werkzeug.security import check_password_hash
+from database import get_db_connection
+from datetime import datetime, timedelta
+import os
+
+# Import all controllers
+from src.controllers.auth_controller import auth_bp
+from src.controllers.event_controller import events_bp
+from src.controllers.profile_controller import profile_bp
+from src.controllers.nfc_controller import nfc_bp
+from src.controllers.messaging_controller import messaging_bp
+from src.controllers.forum_controller import forum_bp
+from src.controllers.system_manager_controller import system_manager_bp
+from src.controllers.event_admin_controller import event_admin_bp
+from src.controllers.nfc_controller import nfc_bp
+
+# Import filters
+from src.utils.filters import register_filters
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Configuration
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
+
+# Ensure upload directories exist
+os.makedirs('static/uploads/profiles', exist_ok=True)
+os.makedirs('static/uploads/events', exist_ok=True)
+os.makedirs('static/uploads/qualifications', exist_ok=True)
+os.makedirs('static/uploads/forum', exist_ok=True)
+os.makedirs('static/qrcodes', exist_ok=True)
+
+# Register blueprints
+app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(events_bp, url_prefix='/events')
+app.register_blueprint(profile_bp, url_prefix='/profile')
+app.register_blueprint(nfc_bp, url_prefix='/nfc')
+app.register_blueprint(messaging_bp, url_prefix='/messages')
+app.register_blueprint(forum_bp, url_prefix='/forum')
+app.register_blueprint(system_manager_bp, url_prefix='/system-manager')
+app.register_blueprint(event_admin_bp, url_prefix='/event-admin')
+
+# Register custom template filters
+register_filters(app)
+
+# Helper function to create notifications
+def create_notification(user_id, notification_type, title, message, link=None):
+    '''Create a notification for a user'''
+    try:
+        db.execute_query('''
+            INSERT INTO notifications (user_id, notification_type, title, message, link)
+            VALUES (%s, %s, %s, %s, %s)
+        ''', (user_id, notification_type, title, message, link))
+        return True
+    except Exception as e:
+        print(f"Error creating notification: {e}")
+        return False
+
+# Make create_notification available to the app context
+app.create_notification = create_notification
+
+# Context processor to inject common variables into all templates
+@app.context_processor
+def inject_common_data():
+    '''Inject common data into all templates'''
+    current_user = None
+    unread_messages = 0
+    unread_notifications = 0
+    
+    if 'user_id' in session:
+        # Get current user data
+        current_user = db.execute_query(
+            "SELECT * FROM users WHERE id = %s",
+            (session['user_id'],),
+            fetch=True,
+            fetchone=True
+        )
+        
+        # Get unread messages count
+        unread_messages_result = db.execute_query('''
+            SELECT COUNT(*) as count FROM messages
+            WHERE recipient_id = %s AND is_read = 0
+        ''', (session['user_id'],), fetch=True, fetchone=True)
+        
+        unread_messages = unread_messages_result['count'] if unread_messages_result else 0
+        
+        # Get unread notifications count
+        unread_notifications_result = db.execute_query('''
+            SELECT COUNT(*) as count FROM notifications
+            WHERE user_id = %s AND is_read = 0
+        ''', (session['user_id'],), fetch=True, fetchone=True)
+        
+        unread_notifications = unread_notifications_result['count'] if unread_notifications_result else 0
+    
+    return dict(
+        current_user=current_user,
+        unread_messages=unread_messages,
+        unread_notifications=unread_notifications
+    )
+
+# ============================================================================
+# MAIN ROUTES
+# ============================================================================
+
+
+
+# ============================================================================
+# DASHBOARD ROUTE
+# ============================================================================
+@app.route('/dashboard')
+def dashboard():
+    '''User dashboard with stats and activity'''
+    if 'user_id' not in session:
+        flash('Please login to access dashboard', 'warning')
+        return redirect('/login')
+    
+    user_id = session.get('user_id')
+    
+    # Initialize stats
+    stats = {
+        'registered_events': 0,
+        'connections': 0,
+        'scans': 0,
+        'forum_posts': 0
+    }
+    
+    upcoming_events = []
+    recent_activity = []
+    
+    try:
+        # Try to get database connection
+        if 'get_db_connection' in dir():
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Get registered events count
+            try:
+                cursor.execute("SELECT COUNT(*) as count FROM event_registrations WHERE user_id = %s", (user_id,))
+                result = cursor.fetchone()
+                stats['registered_events'] = result['count'] if result else 0
+            except: pass
+            
+            # Get connections count
+            try:
+                cursor.execute("SELECT COUNT(*) as count FROM connections WHERE user_id = %s OR connected_user_id = %s", (user_id, user_id))
+                result = cursor.fetchone()
+                stats['connections'] = result['count'] if result else 0
+            except: pass
+            
+            # Get scans count
+            try:
+                cursor.execute("SELECT COUNT(*) as count FROM nfc_scans WHERE scanner_id = %s OR scanned_user_id = %s", (user_id, user_id))
+                result = cursor.fetchone()
+                stats['scans'] = result['count'] if result else 0
+            except: pass
+            
+            # Get forum posts count
+            try:
+                cursor.execute("SELECT COUNT(*) as count FROM forum_posts WHERE user_id = %s", (user_id,))
+                result = cursor.fetchone()
+                stats['forum_posts'] = result['count'] if result else 0
+            except: pass
+            
+            # Get upcoming events
+            try:
+                cursor.execute("""
+                    SELECT e.* FROM events e
+                    JOIN event_registrations er ON e.id = er.event_id
+                    WHERE er.user_id = %s AND e.event_date >= CURDATE()
+                    ORDER BY e.event_date ASC
+                    LIMIT 5
+                """, (user_id,))
+                upcoming_events = cursor.fetchall() or []
+            except: pass
+            
+            cursor.close()
+            conn.close()
+            
+        elif 'execute_query' in dir():
+            # Use execute_query function
+            try:
+                result = execute_query("SELECT COUNT(*) as count FROM event_registrations WHERE user_id = %s", (user_id,), fetch=True, fetchone=True)
+                stats['registered_events'] = result['count'] if result else 0
+            except: pass
+            
+            try:
+                result = execute_query("SELECT COUNT(*) as count FROM connections WHERE user_id = %s OR connected_user_id = %s", (user_id, user_id), fetch=True, fetchone=True)
+                stats['connections'] = result['count'] if result else 0
+            except: pass
+            
+            try:
+                result = execute_query("SELECT COUNT(*) as count FROM nfc_scans WHERE scanner_id = %s OR scanned_user_id = %s", (user_id, user_id), fetch=True, fetchone=True)
+                stats['scans'] = result['count'] if result else 0
+            except: pass
+            
+            try:
+                result = execute_query("SELECT COUNT(*) as count FROM forum_posts WHERE user_id = %s", (user_id,), fetch=True, fetchone=True)
+                stats['forum_posts'] = result['count'] if result else 0
+            except: pass
+            
+            try:
+                upcoming_events = execute_query("""
+                    SELECT e.* FROM events e
+                    JOIN event_registrations er ON e.id = er.event_id
+                    WHERE er.user_id = %s AND e.event_date >= CURDATE()
+                    ORDER BY e.event_date ASC
+                    LIMIT 5
+                """, (user_id,), fetch=True) or []
+            except: pass
+    
+    except Exception as e:
+        print(f"Dashboard error: {e}")
+    
+    # Add welcome activity
+    recent_activity.append({
+        'icon': 'calendar-check',
+        'description': 'Welcome to your dashboard!',
+        'time': 'Just now'
+    })
+    
+    return render_template('dashboard.html', 
+                         stats=stats,
+                         upcoming_events=upcoming_events,
+                         recent_activity=recent_activity)
+
+@app.route('/')
+def index():
+    '''Home page'''
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    # Get statistics
+    stats = {
+        'total_events': db.execute_query(
+            "SELECT COUNT(*) as count FROM events WHERE status = 'published'",
+            fetch=True, fetchone=True
+        )['count'],
+        
+        'my_registrations': db.execute_query(
+            "SELECT COUNT(*) as count FROM attendance WHERE user_id = %s",
+            (session['user_id'],),
+            fetch=True, fetchone=True
+        )['count'],
+        
+        'my_forums': db.execute_query(
+            "SELECT COUNT(*) as count FROM forum_members WHERE user_id = %s",
+            (session['user_id'],),
+            fetch=True, fetchone=True
+        )['count'],
+        
+        'followers': db.execute_query(
+            "SELECT COUNT(*) as count FROM followers WHERE following_id = %s",
+            (session['user_id'],),
+            fetch=True, fetchone=True
+        )['count']
+    }
+    
+    # Get user's registered events
+    my_events = db.execute_query('''
+        SELECT e.*, a.status as attendance_status
+        FROM events e
+        JOIN attendance a ON e.id = a.event_id
+        WHERE a.user_id = %s AND e.end_date >= NOW()
+        ORDER BY e.start_date ASC
+        LIMIT 5
+    ''', (session['user_id'],), fetch=True) or []
+    
+    # Get upcoming events (not registered)
+    upcoming_events = db.execute_query('''
+        SELECT e.*, u.full_name as creator_name,
+               (SELECT COUNT(*) FROM attendance WHERE event_id = e.id) as registration_count
+        FROM events e
+        JOIN users u ON e.creator_id = u.id
+        WHERE e.status = 'published' 
+        AND e.start_date > NOW()
+        AND e.id NOT IN (
+            SELECT event_id FROM attendance WHERE user_id = %s
+        )
+        ORDER BY e.start_date ASC
+        LIMIT 6
+    ''', (session['user_id'],), fetch=True) or []
+    
+    # Get active forums
+    active_forums = db.execute_query('''
+        SELECT f.*, u.full_name as creator_name,
+               (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
+               (SELECT COUNT(*) FROM forum_posts WHERE forum_id = f.id) as post_count
+        FROM forums f
+        JOIN users u ON f.creator_id = u.id
+        WHERE f.is_public = 1
+        ORDER BY post_count DESC
+        LIMIT 5
+    ''', fetch=True) or []
+    
+    # Get recent notifications
+    notifications = db.execute_query('''
+        SELECT * FROM notifications
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+        LIMIT 5
+    ''', (session['user_id'],), fetch=True) or []
+    
+    return render_template('home.html',
+                         stats=stats,
+                         my_events=my_events,
+                         upcoming_events=upcoming_events,
+                         active_forums=active_forums,
+                         notifications=notifications)
+
+@app.route('/search')
+def search():
+    '''Search page'''
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    query = request.args.get('q', '').strip()
+    
+    results = {
+        'events': [],
+        'users': [],
+        'forums': []
+    }
+    
+    if query:
+        # Search events
+        results['events'] = db.execute_query('''
+            SELECT e.*, u.full_name as creator_name
+            FROM events e
+            JOIN users u ON e.creator_id = u.id
+            WHERE e.status = 'published' 
+            AND (e.title LIKE %s OR e.description LIKE %s OR e.location LIKE %s)
+            LIMIT 20
+        ''', (f'%{query}%', f'%{query}%', f'%{query}%'), fetch=True) or []
+        
+        # Search users
+        results['users'] = db.execute_query('''
+            SELECT id, full_name, email, current_employment, profile_picture
+            FROM users
+            WHERE full_name LIKE %s OR email LIKE %s OR current_employment LIKE %s
+            LIMIT 20
+        ''', (f'%{query}%', f'%{query}%', f'%{query}%'), fetch=True) or []
+        
+        # Search forums
+        results['forums'] = db.execute_query('''
+            SELECT f.*, u.full_name as creator_name,
+                   (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count
+            FROM forums f
+            JOIN users u ON f.creator_id = u.id
+            WHERE f.is_public = 1 
+            AND (f.title LIKE %s OR f.description LIKE %s)
+            LIMIT 20
+        ''', (f'%{query}%', f'%{query}%'), fetch=True) or []
+    
+    return render_template('search.html', query=query, results=results)
+
+@app.route('/notifications')
+def notifications():
+    '''View all notifications'''
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    all_notifications = db.execute_query('''
+        SELECT * FROM notifications
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+        LIMIT 50
+    ''', (session['user_id'],), fetch=True) or []
+    
+    return render_template('notifications.html', notifications=all_notifications)
+
+@app.route('/notifications/mark-read/<int:notif_id>', methods=['POST'])
+def mark_notification_read(notif_id):
+    '''Mark a notification as read'''
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    
+    db.execute_query('''
+        UPDATE notifications
+        SET is_read = 1
+        WHERE id = %s AND user_id = %s
+    ''', (notif_id, session['user_id']))
+    
+    return jsonify({'success': True})
+
+@app.route('/notifications/mark-all-read', methods=['POST'])
+def mark_all_read():
+    '''Mark all notifications as read'''
+    if 'user_id' not in session:
+        flash('Please login first.', 'warning')
+        return redirect(url_for('auth.login'))
+    
+    db.execute_query('''
+        UPDATE notifications
+        SET is_read = 1
+        WHERE user_id = %s
+    ''', (session['user_id'],))
+    
+    flash('All notifications marked as read.', 'success')
+    return redirect(url_for('notifications'))
+
+@app.route('/about')
+def about():
+    '''About page'''
+    return render_template('about.html')
+
+@app.route('/help')
+def help_page():
+    '''Help page'''
+    return render_template('help.html')
+
+# ============================================================================
+# ERROR HANDLERS
+# ============================================================================
+
+@app.errorhandler(404)
+def not_found(error):
+    '''Handle 404 errors'''
+    return render_template('errors/404.html'), 404
+
+@app.errorhandler(500)
+def server_error(error):
+    '''Handle 500 errors'''
+    return render_template('errors/500.html'), 500
+
+@app.errorhandler(403)
+def forbidden(error):
+    '''Handle 403 errors'''
+    return render_template('errors/403.html'), 403
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def allowed_file(filename):
+    '''Check if file extension is allowed'''
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+# Make allowed_file available to blueprints
+app.allowed_file = allowed_file
+
+# ============================================================================
+# RUN APPLICATION
+# ============================================================================
+
+
+@app.route('/forums/')
+@app.route('/forums')
+def forums_list():
+    '''Forums list page'''
+    if 'user_id' not in session:
+        flash('Please login to access forums', 'warning')
+        return redirect('/login')
+    
+    # Get forums from database (placeholder for now)
+    forums = []
+    
+    try:
+        if 'get_db_connection' in dir():
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM forums ORDER BY created_at DESC")
+            forums = cursor.fetchall() or []
+            cursor.close()
+            conn.close()
+        elif 'execute_query' in dir():
+            forums = execute_query("SELECT * FROM forums ORDER BY created_at DESC", fetch=True) or []
+    except Exception as e:
+        print(f"Error loading forums: {e}")
+        forums = []
+    
+    return render_template('forums/list.html', forums=forums)
+
+
+@app.route('/profile/view')
+def profile_view():
+    '''View own profile'''
+    if 'user_id' not in session:
+        flash('Please login to view your profile', 'warning')
+        return redirect('/login')
+    
+    user_id = session.get('user_id')
+    user_data = None
+    
+    try:
+        if 'get_db_connection' in dir():
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+            user_data = cursor.fetchone()
+            cursor.close()
+            conn.close()
+        elif 'execute_query' in dir():
+            user_data = execute_query("SELECT * FROM users WHERE id = %s", (user_id,), fetch=True, fetchone=True)
+    except Exception as e:
+        print(f"Error loading profile: {e}")
+    
+    # If we got user data, update session
+    if user_data:
+        for key, value in user_data.items():
+            if key not in ['password', 'password_hash']:
+                session[key] = value
+    
+    return render_template('profile/view.html', user=user_data or session)
+
+
+@app.route('/profile/settings', methods=['GET', 'POST'])
+def profile_settings():
+    '''Profile settings page'''
+    if 'user_id' not in session:
+        flash('Please login to access settings', 'warning')
+        return redirect('/login')
+    
+    if request.method == 'POST':
+        user_id = session.get('user_id')
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validate passwords
+        if new_password and new_password == confirm_password:
+            try:
+                import bcrypt
+                
+                # Get current password hash
+                if 'get_db_connection' in dir():
+                    conn = get_db_connection()
+                    cursor = conn.cursor(dictionary=True)
+                    cursor.execute("SELECT password FROM users WHERE id = %s", (user_id,))
+                    user = cursor.fetchone()
+                    
+                    if user and bcrypt.checkpw(current_password.encode('utf-8'), user['password'].encode('utf-8')):
+                        # Hash new password
+                        new_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                        cursor.execute("UPDATE users SET password = %s WHERE id = %s", (new_hash, user_id))
+                        conn.commit()
+                        flash('Password updated successfully!', 'success')
+                    else:
+                        flash('Current password is incorrect', 'danger')
+                    
+                    cursor.close()
+                    conn.close()
+                elif 'execute_query' in dir():
+                    user = execute_query("SELECT password FROM users WHERE id = %s", (user_id,), fetch=True, fetchone=True)
+                    
+                    if user and bcrypt.checkpw(current_password.encode('utf-8'), user['password'].encode('utf-8')):
+                        new_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                        execute_query("UPDATE users SET password = %s WHERE id = %s", (new_hash, user_id))
+                        flash('Password updated successfully!', 'success')
+                    else:
+                        flash('Current password is incorrect', 'danger')
+            
+            except Exception as e:
+                print(f"Error updating password: {e}")
+                flash('Error updating password', 'danger')
+        
+        elif new_password:
+            flash('Passwords do not match', 'danger')
+        
+        # Handle notification settings
+        email_notifications = request.form.get('email_notifications') == 'on'
+        connection_notifications = request.form.get('connection_notifications') == 'on'
+        
+        flash('Settings updated successfully!', 'success')
+        return redirect('/profile/settings')
+    
+    return render_template('profile/settings.html')
+
+
+
+
+# ============================================================================
+# ADMIN ROUTES - Event Admin Access
+# ============================================================================
+
+@app.route('/admin')
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    '''Admin dashboard'''
+    if 'user_id' not in session:
+        flash('Please login to access admin panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') not in ['event_admin', 'system_manager']:
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect('/')
+    
+    from src.controllers.system_controller import get_system_stats, get_all_events
+    
+    stats = get_system_stats()
+    event_data = get_all_events()
+    
+    return render_template('admin/dashboard.html', 
+                         stats=stats,
+                         events=event_data.get('events', []))
+
+
+@app.route('/admin/users')
+def admin_users():
+    '''Admin user management'''
+    if 'user_id' not in session:
+        flash('Please login to access admin panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') not in ['event_admin', 'system_manager']:
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect('/')
+    
+    from src.controllers.system_controller import get_all_users
+    
+    users = get_all_users()
+    
+    return render_template('admin/users.html', users=users)
+
+
+@app.route('/admin/events')
+def admin_events():
+    '''Admin event management'''
+    if 'user_id' not in session:
+        flash('Please login to access admin panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') not in ['event_admin', 'system_manager']:
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect('/')
+    
+    from src.controllers.system_controller import get_all_events
+    from datetime import datetime
+    
+    event_data = get_all_events()
+    
+    return render_template('admin/events.html',
+                         events=event_data.get('events', []),
+                         upcoming_count=event_data.get('upcoming_count', 0),
+                         past_count=event_data.get('past_count', 0),
+                         total_registrations=event_data.get('total_registrations', 0),
+                         now=datetime.now().date())
+
+
+@app.route('/admin/events/delete/<int:event_id>', methods=['POST'])
+def admin_delete_event(event_id):
+    '''Delete event (admin)'''
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+    
+    if session.get('role') not in ['event_admin', 'system_manager']:
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    from src.controllers.system_controller import delete_event
+    
+    if delete_event(event_id):
+        return jsonify({'success': True, 'message': 'Event deleted successfully'})
+    else:
+        return jsonify({'success': False, 'message': 'Error deleting event'})
+
+
+@app.route('/admin/reports')
+def admin_reports():
+    '''Admin reports and analytics'''
+    if 'user_id' not in session:
+        flash('Please login to access admin panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') not in ['event_admin', 'system_manager']:
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect('/')
+    
+    from src.controllers.system_controller import get_system_stats
+    
+    stats = get_system_stats()
+    
+    return render_template('admin/reports.html', stats=stats)
+
+
+# ============================================================================
+# SYSTEM MANAGER ROUTES - Full System Access
+# ============================================================================
+
+@app.route('/system')
+@app.route('/system/dashboard')
+def system_dashboard():
+    '''System manager dashboard'''
+    if 'user_id' not in session:
+        flash('Please login to access system panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') != 'system_manager':
+        flash('Access denied. System manager privileges required.', 'danger')
+        return redirect('/')
+    
+    from src.controllers.system_controller import get_system_stats
+    
+    stats = get_system_stats()
+    
+    return render_template('system/dashboard.html', stats=stats)
+
+
+@app.route('/system/users')
+def system_users():
+    '''System user management'''
+    if 'user_id' not in session:
+        flash('Please login to access system panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') != 'system_manager':
+        flash('Access denied. System manager privileges required.', 'danger')
+        return redirect('/')
+    
+    from src.controllers.system_controller import get_all_users
+    
+    users = get_all_users()
+    
+    return render_template('system/users.html', users=users)
+
+
+@app.route('/system/users/update-role', methods=['POST'])
+def system_update_user_role():
+    '''Update user role'''
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+    
+    if session.get('role') != 'system_manager':
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    from src.controllers.system_controller import update_user_role
+    
+    data = request.get_json()
+    user_id = data.get('user_id')
+    new_role = data.get('role')
+    
+    if not user_id or not new_role:
+        return jsonify({'success': False, 'message': 'Missing parameters'})
+    
+    if new_role not in ['attendee', 'event_admin', 'system_manager']:
+        return jsonify({'success': False, 'message': 'Invalid role'})
+    
+    if update_user_role(user_id, new_role):
+        return jsonify({'success': True, 'message': 'Role updated successfully'})
+    else:
+        return jsonify({'success': False, 'message': 'Error updating role'})
+
+
+@app.route('/system/users/delete/<int:user_id>', methods=['POST'])
+def system_delete_user(user_id):
+    '''Delete user from system'''
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+    
+    if session.get('role') != 'system_manager':
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    # Prevent deleting yourself
+    if user_id == session.get('user_id'):
+        return jsonify({'success': False, 'message': 'Cannot delete your own account'})
+    
+    from src.controllers.system_controller import delete_user
+    
+    if delete_user(user_id):
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    else:
+        return jsonify({'success': False, 'message': 'Error deleting user'})
+
+
+@app.route('/system/settings', methods=['GET', 'POST'])
+def system_settings():
+    '''System settings'''
+    if 'user_id' not in session:
+        flash('Please login to access system panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') != 'system_manager':
+        flash('Access denied. System manager privileges required.', 'danger')
+        return redirect('/')
+    
+    if request.method == 'POST':
+        # Handle settings update
+        flash('Settings updated successfully!', 'success')
+        return redirect('/system/settings')
+    
+    return render_template('system/settings.html')
+
+
+@app.route('/system/settings/clear-cache', methods=['POST'])
+def system_clear_cache():
+    '''Clear system cache'''
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+    
+    if session.get('role') != 'system_manager':
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    # Implement cache clearing logic here
+    return jsonify({'success': True, 'message': 'Cache cleared successfully'})
+
+
+@app.route('/system/logs')
+def system_logs():
+    '''System activity logs'''
+    if 'user_id' not in session:
+        flash('Please login to access system panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') != 'system_manager':
+        flash('Access denied. System manager privileges required.', 'danger')
+        return redirect('/')
+    
+    # Get logs (placeholder for now)
+    logs = []
+    
+    return render_template('system/logs.html', logs=logs)
+
+
+@app.route('/system/logs/download')
+def system_logs_download():
+    '''Download system logs'''
+    if 'user_id' not in session:
+        flash('Please login to access system panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') != 'system_manager':
+        flash('Access denied. System manager privileges required.', 'danger')
+        return redirect('/')
+    
+    # Implement log download
+    flash('Log download feature coming soon', 'info')
+    return redirect('/system/logs')
+
+
+@app.route('/system/logs/clear', methods=['POST'])
+def system_logs_clear():
+    '''Clear system logs'''
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+    
+    if session.get('role') != 'system_manager':
+        return jsonify({'success': False, 'message': 'Access denied'})
+    
+    # Implement log clearing
+    return jsonify({'success': True, 'message': 'Logs cleared successfully'})
+
+
+
+
+
+# ============================================================================
+# USER CREATION & REGISTRATION ROUTES
+# ============================================================================
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    '''Public user registration'''
+    if request.method == 'POST':
+        full_name = request.form.get('full_name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        phone = request.form.get('phone', '')
+        job_title = request.form.get('job_title', '')
+        company = request.form.get('company', '')
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
+            return redirect('/register')
+        
+        try:
+            import bcrypt
+            import uuid
+            from database import get_db_connection
+            
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            nfc_badge_id = str(uuid.uuid4())[:8].upper()
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            sql = "INSERT INTO users (full_name, email, password, phone, job_title, company, role, nfc_badge_id) VALUES (%s, %s, %s, %s, %s, %s, 'attendee', %s)"
+            cursor.execute(sql, (full_name, email, hashed, phone, job_title, company, nfc_badge_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            flash('Account created successfully! Please login.', 'success')
+            return redirect('/login')
+            
+        except Exception as e:
+            print(f"Registration error: {e}")
+            if 'Duplicate entry' in str(e):
+                flash('Email already registered', 'danger')
+            else:
+                flash('Error creating account. Please try again.', 'danger')
+            return redirect('/register')
+    
+    return render_template('register.html')
+
+
+@app.route('/admin/users/create', methods=['GET', 'POST'])
+def admin_create_user():
+    '''Admin creates new user'''
+    if 'user_id' not in session:
+        flash('Please login to access admin panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') not in ['event_admin', 'system_manager']:
+        flash('Access denied. Admin privileges required.', 'danger')
+        return redirect('/')
+    
+    if request.method == 'POST':
+        full_name = request.form.get('full_name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        role = request.form.get('role')
+        phone = request.form.get('phone', '')
+        job_title = request.form.get('job_title', '')
+        company = request.form.get('company', '')
+        nfc_badge_id = request.form.get('nfc_badge_id', '')
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
+            return redirect('/admin/users/create')
+        
+        if role == 'system_manager' and session.get('role') != 'system_manager':
+            flash('Only system managers can create other system managers', 'danger')
+            return redirect('/admin/users/create')
+        
+        try:
+            import bcrypt
+            import uuid
+            from database import get_db_connection
+            
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            
+            if not nfc_badge_id:
+                nfc_badge_id = str(uuid.uuid4())[:8].upper()
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            sql = "INSERT INTO users (full_name, email, password, phone, job_title, company, role, nfc_badge_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+            cursor.execute(sql, (full_name, email, hashed, phone, job_title, company, role, nfc_badge_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            flash(f'User created successfully with role: {role}', 'success')
+            return redirect('/admin/users')
+            
+        except Exception as e:
+            print(f"User creation error: {e}")
+            if 'Duplicate entry' in str(e):
+                flash('Email already exists', 'danger')
+            else:
+                flash('Error creating user. Please try again.', 'danger')
+            return redirect('/admin/users/create')
+    
+    return render_template('admin/create_user.html')
+
+
+@app.route('/system/create-admin', methods=['GET', 'POST'])
+def system_create_admin():
+    '''System manager quick admin creation'''
+    if 'user_id' not in session:
+        flash('Please login to access system panel', 'warning')
+        return redirect('/login')
+    
+    if session.get('role') != 'system_manager':
+        flash('Access denied. System manager privileges required.', 'danger')
+        return redirect('/')
+    
+    if request.method == 'POST':
+        full_name = request.form.get('full_name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        role = request.form.get('role')
+        
+        try:
+            import bcrypt
+            import uuid
+            from database import get_db_connection
+            
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            nfc_badge_id = str(uuid.uuid4())[:8].upper()
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            sql = "INSERT INTO users (full_name, email, password, role, nfc_badge_id) VALUES (%s, %s, %s, %s, %s)"
+            cursor.execute(sql, (full_name, email, hashed, role, nfc_badge_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            flash(f'{role.replace("_", " ").title()} created successfully!', 'success')
+            return redirect('/system/users')
+            
+        except Exception as e:
+            print(f"Admin creation error: {e}")
+            if 'Duplicate entry' in str(e):
+                flash('Email already exists', 'danger')
+            else:
+                flash('Error creating admin. Please try again.', 'danger')
+            return redirect('/system/create-admin')
+    
+    return render_template('system/create_admin.html')
+
+
+
+
+
+# ============================================================================
+# AUTHENTICATION ROUTES
+# ============================================================================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    '''User login'''
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        try:
+            import bcrypt
+            from database import get_db_connection
+            
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+            user = cursor.fetchone()
+            
+            cursor.close()
+            conn.close()
+            
+            if user and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+                # Login successful
+                session['user_id'] = user['id']
+                session['full_name'] = user['full_name']
+                session['email'] = user['email']
+                session['role'] = user['role']
+                
+                flash(f'Welcome back, {user["full_name"]}!', 'success')
+                
+                # Redirect based on role
+                if user['role'] == 'system_manager':
+                    return redirect('/system/dashboard')
+                elif user['role'] == 'event_admin':
+                    return redirect('/admin/dashboard')
+                else:
+                    return redirect('/dashboard')
+            else:
+                flash('Invalid email or password', 'danger')
+                return redirect('/login')
+                
+        except Exception as e:
+            print(f"Login error: {e}")
+            flash('An error occurred. Please try again.', 'danger')
+            return redirect('/login')
+    
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    '''User logout'''
+    user_name = session.get('full_name', 'User')
+    session.clear()
+    flash(f'Goodbye, {user_name}! You have been logged out.', 'info')
+    return redirect('/login')
+
+
+@app.route('/forgot-password')
+def forgot_password():
+    '''Forgot password page (placeholder)'''
+    flash('Password reset feature coming soon. Please contact admin.', 'info')
+    return redirect('/login')
+
+
+
+if __name__ == '__main__':
+    # Create default system manager if not exists
+    try:
+        existing_admin = db.execute_query(
+            "SELECT * FROM users WHERE role = 'system_manager' LIMIT 1",
+            fetch=True,
+            fetchone=True
+        )
+        
+        if not existing_admin:
+            from werkzeug.security import generate_password_hash
+            
+            db.execute_query('''
+                INSERT INTO users (full_name, email, password_hash, role, is_verified)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (
+                'System Manager',
+                'admin@nfcevents.com',
+                generate_password_hash('admin123'),
+                'system_manager',
+                1
+            ))
+            
+            print("✅ Default system manager created!")
+            print("   Email: admin@nfcevents.com")
+            print("   Password: admin123")
+    except Exception as e:
+        print(f"Note: {e}")
+    
+    print("\n" + "="*70)
+    print("🚀 NFC Event & Social Network System")
+    print("="*70)
+    print("📱 Starting Flask application...")
+    print("🌐 Access at: http://localhost:5000")
+    print("="*70 + "\n")
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)

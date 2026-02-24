@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Edit Profile{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>✏️ Edit Profile</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" name="full_name" class="form-control" value="{{ user.full_name }}" required>
+        </div>
+        <div class="form-group">
+            <label>Biography</label>
+            <textarea name="biography" class="form-control" rows="4">{{ user.biography or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Qualifications</label>
+            <textarea name="qualifications" class="form-control" rows="3">{{ user.qualifications or '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Current Employment</label>
+            <input type="text" name="current_employment" class="form-control" value="{{ user.current_employment or '' }}">
+        </div>
+        <div class="form-group">
+            <label>Research Area</label>
+            <input type="text" name="research_area" class="form-control" value="{{ user.research_area or '' }}">
+        </div>
+        <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+        <a href="/users/{{ user.id }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

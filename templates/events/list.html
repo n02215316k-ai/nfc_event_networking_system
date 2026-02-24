@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}Events - Event Social Network{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="display-5 fw-bold text-white">
+                <i class="fas fa-calendar-alt me-3"></i>
+                All Events
+            </h1>
+            <p class="lead text-white">Discover and join amazing events</p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% if session.role in ['event_admin', 'system_manager'] %}
+            <a href="/events/create" class="btn btn-success btn-lg">
+                <i class="fas fa-plus-circle me-2"></i>
+                Create Event
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card shadow-lg mb-4 animate-in">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <input type="text" class="form-control form-control-lg" id="searchEvents" 
+                           placeholder="🔍 Search events...">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-lg" id="filterCategory">
+                        <option value="">All Categories</option>
+                        <option value="tech">Technology</option>
+                        <option value="business">Business</option>
+                        <option value="networking">Networking</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-lg" id="filterStatus">
+                        <option value="upcoming">Upcoming</option>
+                        <option value="past">Past</option>
+                        <option value="all">All Events</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4">
+        {% if events %}
+            {% for event in events %}
+            {% set is_dict = event is mapping %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-lg animate-in">
+                    {% if is_dict %}
+                        {% set event_image = event.get('image_url') %}
+                        {% set event_title = event.get('title', 'Untitled Event') %}
+                        {% set event_desc = event.get('description', 'No description') %}
+                        {% set event_date = event.get('event_date', 'TBD') %}
+                        {% set event_time = event.get('event_time', 'TBD') %}
+                        {% set event_location = event.get('location', 'TBD') %}
+                        {% set event_id = event.get('id', 0) %}
+                        {% set attendee_count = event.get('attendee_count', 0) %}
+                    {% else %}
+                        {% set event_image = event.image_url if event.image_url is defined else None %}
+                        {% set event_title = event.title if event.title is defined else 'Untitled Event' %}
+                        {% set event_desc = event.description if event.description is defined else 'No description' %}
+                        {% set event_date = event.event_date if event.event_date is defined else 'TBD' %}
+                        {% set event_time = event.event_time if event.event_time is defined else 'TBD' %}
+                        {% set event_location = event.location if event.location is defined else 'TBD' %}
+                        {% set event_id = event.id if event.id is defined else 0 %}
+                        {% set attendee_count = event.attendee_count if event.attendee_count is defined else 0 %}
+                    {% endif %}
+                    
+                    {% if event_image %}
+                    <img src="{{ event_image }}" class="card-img-top" alt="{{ event_title }}" 
+                         style="height: 200px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top bg-gradient d-flex align-items-center justify-content-center" 
+                         style="height: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <i class="fas fa-calendar-alt fa-4x text-white"></i>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">{{ event_title }}</h5>
+                        <p class="card-text text-muted">{{ event_desc[:100] }}...</p>
+                        
+                        <div class="mb-2">
+                            <i class="fas fa-calendar text-primary me-2"></i>
+                            <small>
+                                {% if event_date != 'TBD' %}
+                                    {% if event_date is string %}
+                                        {{ event_date }}
+                                    {% else %}
+                                        {{ event_date.strftime('%B %d, %Y') }}
+                                    {% endif %}
+                                {% else %}
+                                    TBD
+                                {% endif %}
+                            </small>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <i class="fas fa-clock text-primary me-2"></i>
+                            <small>{{ event_time }}</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <i class="fas fa-map-marker-alt text-primary me-2"></i>
+                            <small>{{ event_location }}</small>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-primary">
+                                <i class="fas fa-users me-1"></i>
+                                {{ attendee_count }} attending
+                            </span>
+                            <a href="/events/{{ event_id }}" class="btn btn-sm btn-outline-primary">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="card shadow-lg">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-calendar-times fa-5x text-muted mb-4"></i>
+                        <h3>No Events Found</h3>
+                        <p class="text-muted">Check back later for upcoming events</p>
+                        {% if session.role in ['event_admin', 'system_manager'] %}
+                        <a href="/events/create" class="btn btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i>
+                            Create First Event
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up - NFC Events{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mt-5 mb-5">
+        <div class="col-md-6">
+            <div class="card shadow-lg">
+                <div class="card-header text-center py-3">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-plus me-2"></i>Create Account
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('auth.signup') }}">
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="full_name" class="form-label">
+                                    <i class="fas fa-user"></i> Full Name *
+                                </label>
+                                <input type="text" class="form-control" id="full_name" name="full_name" 
+                                       placeholder="e.g., Thabo Ncube" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="fas fa-envelope"></i> Email Address *
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="your.email@example.com" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="phone_number" class="form-label">
+                                <i class="fas fa-phone"></i> Phone Number
+                            </label>
+                            <input type="tel" class="form-control" id="phone_number" name="phone_number" 
+                                   placeholder="+263 123 456 789">
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="password" class="form-label">
+                                    <i class="fas fa-lock"></i> Password *
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       placeholder="Min. 6 characters" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="confirm_password" class="form-label">
+                                    <i class="fas fa-lock"></i> Confirm Password *
+                                </label>
+                                <input type="password" class="form-control" id="confirm_password" 
+                                       name="confirm_password" placeholder="Re-enter password" required>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-user-plus me-2"></i>Create Account
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Already have an account?</p>
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary mt-2">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

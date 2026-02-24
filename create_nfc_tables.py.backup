@@ -1,0 +1,100 @@
+import os
+
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    CYAN = '\033[96m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+SQL_TABLES = """
+-- Connections table for networking
+CREATE TABLE IF NOT EXISTS connections (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    connected_user_id INT NOT NULL,
+    connection_method VARCHAR(20) DEFAULT 'qr',
+    connected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (connected_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_connection (user_id, connected_user_id)
+);
+
+-- Networking logs
+CREATE TABLE IF NOT EXISTS networking_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    scanner_id INT NOT NULL,
+    scanned_user_id INT NOT NULL,
+    scan_method VARCHAR(20) DEFAULT 'qr',
+    scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (scanner_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (scanned_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Event check-ins
+CREATE TABLE IF NOT EXISTS event_checkins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_id INT NOT NULL,
+    user_id INT NOT NULL,
+    checked_in_at TIMESTAMP NULL,
+    checked_out_at TIMESTAMP NULL,
+    checked_in_by INT NULL,
+    checked_out_by INT NULL,
+    scan_method VARCHAR(20) DEFAULT 'qr',
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (checked_in_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (checked_out_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_event_user (event_id, user_id),
+    INDEX idx_checkin_time (checked_in_at)
+);
+
+-- Admin check-in logs for auditing
+CREATE TABLE IF NOT EXISTS admin_checkin_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_id INT NOT NULL,
+    admin_id INT NOT NULL,
+    attendee_id INT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    scan_method VARCHAR(20) DEFAULT 'qr',
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (attendee_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_event_time (event_id, timestamp)
+);
+"""
+
+MIGRATION_SCRIPT = f"""
+from database.db import db
+
+print("Creating NFC/QR networking and check-in tables...")
+
+tables = [
+    {repr(SQL_TABLES)}
+]
+
+for table_sql in tables:
+    for statement in table_sql.split(';'):
+        if statement.strip():
+            try:
+                db.execute_query(statement)
+                print("✓ Table created/verified")
+            except Exception as e:
+                print(f"Note: {{e}}")
+
+print("\\n✅ Database tables ready!")
+"""
+
+print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*80}{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}PHASE 2: CREATING DATABASE TABLES{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}{'='*80}{Colors.END}\n")
+
+# Create migration script
+with open('create_nfc_tables_migration.py', 'w', encoding='utf-8') as f:
+    f.write(MIGRATION_SCRIPT.strip())
+
+print(f"{Colors.GREEN}✓{Colors.END} Created: create_nfc_tables_migration.py")
+print(f"\n{Colors.YELLOW}Run this to create tables:{Colors.END}")
+print(f"  python create_nfc_tables_migration.py")
+print(f"\n{Colors.GREEN}✅ Migration script ready!{Colors.END}\n")

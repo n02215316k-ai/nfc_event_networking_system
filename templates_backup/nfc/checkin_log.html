@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Event Check-in Log{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-clipboard-list me-2"></i>{{ event.title }} - Check-in Log</h2>
+                    <p class="text-muted">Real-time attendance monitoring</p>
+                </div>
+                <div>
+                    <a href="/nfc/scanner" class="btn btn-primary me-2">
+                        <i class="fas fa-qrcode me-1"></i>Open Scanner
+                    </a>
+                    <a href="/event-admin/dashboard" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <h3 id="stat-registered">0</h3>
+                            <p class="mb-0">Total Registered</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h3 id="stat-checked-in">0</h3>
+                            <p class="mb-0">Currently Here</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h3 id="stat-today">0</h3>
+                            <p class="mb-0">Check-ins Today</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <h3 id="stat-rate">0%</h3>
+                            <p class="mb-0">Attendance Rate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Log -->
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-stream me-2"></i>Live Check-in Stream
+                            <span class="badge bg-success ms-2">Auto-refresh: ON</span>
+                        </h5>
+                        <button class="btn btn-sm btn-light" onclick="exportLog()">
+                            <i class="fas fa-download me-1"></i>Export CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Attendee</th>
+                                    <th>Email</th>
+                                    <th>Action</th>
+                                    <th>Duration</th>
+                                    <th>Method</th>
+                                    <th>Admin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="checkin-log-body">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const eventId = {{ event.id }};
+let refreshInterval;
+
+function loadCheckinLog() {
+    fetch(`/nfc/api/event/${eventId}/checkin-log`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Update stats
+                document.getElementById('stat-registered').textContent = data.stats.total_registered;
+                document.getElementById('stat-checked-in').textContent = data.stats.currently_checked_in;
+                document.getElementById('stat-today').textContent = data.stats.total_checkins_today;
+                document.getElementById('stat-rate').textContent = data.stats.attendance_rate + '%';
+                
+                // Update log
+                const tbody = document.getElementById('checkin-log-body');
+                if (data.checkins && data.checkins.length > 0) {
+                    tbody.innerHTML = data.checkins.map(checkin => {
+                        const status = checkin.checked_out_at ? 'out' : 'in';
+                        const badgeClass = status === 'in' ? 'bg-success' : 'bg-secondary';
+                        const time = new Date(checkin.checked_in_at).toLocaleTimeString();
+                        const duration = checkin.duration_minutes ? checkin.duration_minutes + ' min' : '-';
+                        
+                        return `
+                            <tr class="${status === 'in' ? 'table-success' : ''}">
+                                <td>${time}</td>
+                                <td><strong>${checkin.full_name}</strong></td>
+                                <td>${checkin.email}</td>
+                                <td><span class="badge ${badgeClass}">Checked ${status}</span></td>
+                                <td>${duration}</td>
+                                <td><span class="badge bg-primary">${checkin.scan_method.toUpperCase()}</span></td>
+                                <td>${checkin.admin_name || 'Self'}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No check-ins yet</td></tr>';
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Error loading log:', err);
+        });
+}
+
+function exportLog() {
+    window.location.href = `/api/event/${eventId}/export-checkins`;
+}
+
+// Initial load
+loadCheckinLog();
+
+// Auto-refresh every 5 seconds
+refreshInterval = setInterval(loadCheckinLog, 5000);
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    clearInterval(refreshInterval);
+});
+</script>
+{% endblock %}

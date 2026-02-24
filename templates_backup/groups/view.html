@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }}{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>{{ group.name }}</h2>
+    <p>{{ group.description }}</p>
+    
+    <h3>Members ({{ members|length }})</h3>
+    {% for member in members %}
+    <div>{{ member.full_name }} - {{ member.role }}</div>
+    {% endfor %}
+</div>
+{% endblock %}

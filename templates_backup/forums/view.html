@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ forum.title }}{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>{{ forum.title }}</h2>
+    <p>{{ forum.description }}</p>
+    
+    <h3 style="margin-top: 2rem;">Posts</h3>
+    {% for post in posts %}
+    <div class="card">
+        <strong>{{ post.author_name }}</strong>
+        <p>{{ post.content }}</p>
+        <small>{{ post.created_at|datetime_format }}</small>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

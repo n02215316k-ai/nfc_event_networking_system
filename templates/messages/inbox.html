@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Inbox{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>📬 Inbox</h2>
+    <a href="/messages/compose" class="btn btn-primary">✉️ Compose New</a>
+    
+    {% if messages %}
+    <table style="width: 100%; margin-top: 1rem;">
+        <tr><th>From</th><th>Subject</th><th>Date</th></tr>
+        {% for msg in messages %}
+        <tr style="{% if not msg.is_read %}font-weight: bold;{% endif %}">
+            <td>{{ msg.sender_name }}</td>
+            <td>{{ msg.subject }}</td>
+            <td>{{ msg.sent_at|datetime_format }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p style="text-align: center; padding: 2rem; color: #999;">No messages</p>
+    {% endif %}
+</div>
+{% endblock %}

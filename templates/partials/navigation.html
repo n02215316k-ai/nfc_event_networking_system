@@ -1,0 +1,62 @@
+<!-- Dynamic Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{{ dashboard_url if current_user else '/' }}">
+            <i class="fas fa-wifi"></i> NFC Events
+        </a>
+        
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <!-- Main Navigation -->
+            <ul class="navbar-nav me-auto">
+                {% for item in nav_items %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ item.url }}">
+                        <i class="{{ item.icon }}"></i> {{ item.name }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            
+            <!-- User Dropdown (Right Side) -->
+            <ul class="navbar-nav">
+                {% if current_user %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" 
+                       data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-circle"></i> {{ current_user.full_name }}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                        {% for item in user_dropdown %}
+                            {% if item.divider %}
+                            <li><hr class="dropdown-divider"></li>
+                            {% else %}
+                            <li>
+                                <a class="dropdown-item" href="{{ item.url }}">
+                                    <i class="{{ item.icon }}"></i> {{ item.name }}
+                                </a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </li>
+                {% else %}
+                <!-- Not logged in - show Login/Signup -->
+                <li class="nav-item">
+                    <a class="nav-link" href="/auth/login">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/auth/signup">
+                        <i class="fas fa-user-plus"></i> Sign Up
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

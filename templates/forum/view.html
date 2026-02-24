@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}{{ forum.title }} - Forum{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h2>{{ forum.title }}</h2>
+                    <p class="text-muted">{{ forum.description }}</p>
+                    <small class="text-muted">
+                        Created by {{ forum.creator_name }} | 
+                        {{ member_count }} members | 
+                        {% if forum.is_public %}Public{% else %}Private{% endif %}
+                    </small>
+                </div>
+                <div>
+                    {% if is_member %}
+                    <form method="POST" action="{{ url_for('forum.leave', forum_id=forum.id) }}" class="d-inline">
+                        <button type="submit" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i>Leave
+                        </button>
+                    </form>
+                    {% else %}
+                    <button class="btn btn-primary join-forum-btn" data-forum-id="{{ forum.id }}">
+                        <i class="fas fa-sign-in-alt me-2"></i>Join Forum
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if is_member %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Create New Post</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('forum.create_post', forum_id=forum.id) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Title (Optional)</label>
+                    <input type="text" class="form-control" name="title">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Content *</label>
+                    <textarea class="form-control" name="content" rows="4" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Attachment</label>
+                    <input type="file" class="form-control" name="attachment">
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-2"></i>Post
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-comments me-2"></i>Posts</h5>
+        </div>
+        <div class="card-body">
+            {% if posts %}
+            {% for post in posts %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-start">
+                        <img src="{{ url_for('static', filename=post.author_picture or 'uploads/default-avatar.png') }}" 
+                             class="profile-img me-3" alt="{{ post.author_name }}">
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between">
+                                <h6 class="mb-1">{{ post.author_name }}</h6>
+                                <small class="text-muted">{{ post.created_at|timeago }}</small>
+                            </div>
+                            {% if post.title %}
+                            <h5 class="mt-2">{{ post.title }}</h5>
+                            {% endif %}
+                            <p class="mb-2">{{ post.content }}</p>
+                            
+                            {% if post.attachment %}
+                            <a href="{{ url_for('static', filename=post.attachment) }}" target="_blank" class="btn btn-sm btn-outline-primary mb-2">
+                                <i class="fas fa-paperclip me-1"></i>View Attachment
+                            </a>
+                            {% endif %}
+                            
+                            <div class="d-flex gap-2">
+                                <a href="{{ url_for('forum.view_post', post_id=post.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-reply me-1"></i>Reply ({{ post.reply_count }})
+                                </a>
+                                
+                                {% if current_user.id == post.user_id or user_role in ['admin', 'moderator'] %}
+                                <form method="POST" action="{{ url_for('forum.delete_post', post_id=post.id) }}" 
+                                      class="d-inline" onsubmit="return confirm('Delete this post?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted text-center">No posts yet. Be the first to post!</p>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="fas fa-lock me-2"></i>You must join this forum to view posts.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('.join-forum-btn').click(function() {
+        var forumId = $(this).data('forum-id');
+        $.ajax({
+            url: '/forum/' + forumId + '/join',
+            method: 'POST',
+            success: function(response) {
+                if (response.success) {
+                    location.reload();
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

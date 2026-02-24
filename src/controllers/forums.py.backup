@@ -1,0 +1,43 @@
+# filepath: c:\Users\lenovo\Downloads\nfc\src\controllers\forums.py
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from database.db import db
+
+forum_bp = Blueprint('forum', __name__, url_prefix='/forums')
+
+@forum_bp.route('/')
+def list_forums():
+    """List all forums"""
+    forums = db.execute_query("""
+        SELECT f.*, u.full_name as creator_name,
+               (SELECT COUNT(*) FROM forum_posts WHERE forum_id = f.id) as post_count
+        FROM forums f
+        JOIN users u ON f.creator_id = u.id
+        WHERE f.is_public = TRUE
+        ORDER BY f.created_at DESC
+    """, fetch=True) or []
+    
+    return render_template('forums/list.html', forums=forums)
+
+@forum_bp.route('/<int:forum_id>')
+def view_forum(forum_id):
+    """View forum details"""
+    forum = db.execute_query("""
+        SELECT f.*, u.full_name as creator_name
+        FROM forums f
+        JOIN users u ON f.creator_id = u.id
+        WHERE f.id = %s
+    """, (forum_id,), fetch=True, fetchone=True)
+    
+    if not forum:
+        flash('Forum not found', 'error')
+        return redirect(url_for('forum.list_forums'))
+    
+    posts = db.execute_query("""
+        SELECT p.*, u.full_name as author_name
+        FROM forum_posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.forum_id = %s AND p.parent_id IS NULL
+        ORDER BY p.created_at DESC
+    """, (forum_id,), fetch=True) or []
+    
+    return render_template('forums/view.html', forum=forum, posts=posts)

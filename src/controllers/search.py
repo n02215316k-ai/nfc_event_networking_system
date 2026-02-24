@@ -1,0 +1,33 @@
+# filepath: c:\Users\lenovo\Downloads\nfc\src\controllers\search.py
+from flask import Blueprint, render_template, request, session
+from database import get_db_connection
+
+search_bp = Blueprint('search', __name__, url_prefix='/search')
+
+@search_bp.route('/')
+def search():
+    """Universal search"""
+    query = request.args.get('q', '').strip()
+    
+    results = {'events': [], 'users': [], 'forums': []}
+    
+    if query and len(query) >= 2:
+        results['events'] = db.execute_query("""
+            SELECT * FROM events 
+            WHERE title LIKE %s AND status = 'published'
+            LIMIT 10
+        """, (f'%{query}%',), fetch=True) or []
+        
+        results['users'] = db.execute_query("""
+            SELECT id, full_name, email FROM users 
+            WHERE full_name LIKE %s 
+            LIMIT 10
+        """, (f'%{query}%',), fetch=True) or []
+        
+        results['forums'] = db.execute_query("""
+            SELECT * FROM forums 
+            WHERE title LIKE %s AND is_public = TRUE
+            LIMIT 10
+        """, (f'%{query}%',), fetch=True) or []
+    
+    return render_template('search/results.html', query=query, results=results)

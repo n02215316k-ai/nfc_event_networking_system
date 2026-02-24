@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Qualification Verifications - System Manager{% endblock %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2><i class="fas fa-certificate me-2"></i>Qualification Verifications</h2>
+    <div class="card mt-3">
+        <div class="card-body">
+            {% if pending_qualifications %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Qualification</th>
+                            <th>Institution</th>
+                            <th>Year</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for qual in pending_qualifications %}
+                        <tr>
+                            <td>{{ qual.user_name }}</td>
+                            <td>{{ qual.qualification }}</td>
+                            <td>{{ qual.institution }}</td>
+                            <td>{{ qual.year }}</td>
+                            <td><span class="badge bg-warning">Pending</span></td>
+                            <td>
+                                <form method="POST" action="{{ url_for('system_manager.verify_qualification', qual_id=qual.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-success">Verify</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('system_manager.reject_qualification', qual_id=qual.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No pending verifications.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

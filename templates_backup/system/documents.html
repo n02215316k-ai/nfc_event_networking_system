@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Document Verification{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>📄 Document Verification</h2>
+    {% for doc in documents %}
+    <div class="card">
+        <strong>{{ doc.title }}</strong>
+        <p>User: {{ doc.full_name }} ({{ doc.email }})</p>
+        <p>Type: {{ doc.document_type }}</p>
+        <a href="/static/uploads/{{ doc.file_path }}" target="_blank" class="btn btn-secondary">View Document</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

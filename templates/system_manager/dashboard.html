@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}System Manager Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-cogs me-2"></i>System Manager Dashboard
+    </h2>
+    
+    <!-- Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                    <h3>{{ stats.total_users }}</h3>
+                    <p class="text-muted mb-0">Total Users</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
+                    <h3>{{ stats.total_events }}</h3>
+                    <p class="text-muted mb-0">Total Events</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <h3>{{ stats.checked_in_now }}</h3>
+                    <p class="text-muted mb-0">Currently Checked In</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-hourglass-half fa-3x text-warning mb-3"></i>
+                    <h3>{{ stats.pending_verifications }}</h3>
+                    <p class="text-muted mb-0">Pending Verifications</p>
+                    <a href="{{ url_for('system_manager.verifications') }}" class="btn btn-sm btn-warning mt-2">
+                        Review
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Links -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('system_manager.users') }}" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-users me-2"></i>Manage Users
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('system_manager.events') }}" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-calendar me-2"></i>Manage Events
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('system_manager.verifications') }}" class="btn btn-outline-warning w-100">
+                                <i class="fas fa-certificate me-2"></i>Verifications
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{{ url_for('system_manager.reports') }}" class="btn btn-outline-info w-100">
+                                <i class="fas fa-chart-bar me-2"></i>Reports
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user-plus me-2"></i>Recent Users</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for user in recent_users %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ user.full_name }}</strong><br>
+                                    <small class="text-muted">{{ user.email }}</small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-info">{{ user.role }}</span><br>
+                                    <small class="text-muted">{{ user.created_at|timeago }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calendar-plus me-2"></i>Recent Events</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for event in recent_events %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ event.title }}</strong><br>
+                                    <small class="text-muted">by {{ event.creator_name }}</small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-{{ 'success' if event.status == 'published' else 'warning' }}">
+                                        {{ event.status }}
+                                    </span><br>
+                                    <small class="text-muted">{{ event.created_at|timeago }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

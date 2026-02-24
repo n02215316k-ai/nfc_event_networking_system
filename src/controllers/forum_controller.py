@@ -1,0 +1,402 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, current_app
+from database import get_db_connection
+from werkzeug.utils import secure_filename
+from datetime import datetime
+import os
+
+
+# Database helper function
+def execute_query(query, params=None, fetch=False, fetchone=False):
+    """Execute database query with proper connection handling"""
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query, params or ())
+        
+        if fetch:
+            result = cursor.fetchone() if fetchone else cursor.fetchall()
+        else:
+            conn.commit()
+            result = cursor.lastrowid if cursor.lastrowid else True
+        
+        cursor.close()
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"Database error: {e}")
+        if conn:
+            conn.close()
+        return None
+
+
+forum_bp = Blueprint('forum', __name__)
+
+def require_login(f):
+    '''Decorator to require login'''
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login to access this page.', 'warning')
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@forum_bp.route('/')
+def list_forums():
+    '''List all public forums'''
+    forums = execute_query('''
+        SELECT f.*, u.full_name as creator_name,
+               (SELECT COUNT(*) FROM forum_members WHERE forum_id = f.id) as member_count,
+               (SELECT COUNT(*) FROM forum_posts WHERE forum_id = f.id) as post_count
+        FROM forums f
+        JOIN users u ON f.creator_id = u.id
+        WHERE f.is_public = TRUE
+        ORDER BY f.updated_at DESC
+    ''', fetch=True) or []
+    
+    # Check membership for current user
+    if 'user_id' in session:
+        for forum in forums:
+            member = execute_query(
+                "SELECT id FROM forum_members WHERE forum_id = %s AND user_id = %s",
+                (forum['id'], session['user_id']),
+                fetch=True,
+                fetchone=True
+            )
+            forum['is_member'] = member is not None
+    
+    return render_template('forum/list.html', forums=forums)
+
+@forum_bp.route('/create', methods=['GET', 'POST'])
+@require_login
+def create_forum():
+    '''Create a new forum'''
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        is_public = request.form.get('is_public') == 'on'
+        
+        if not title or len(title) < 5:
+            flash('Forum title must be at least 5 characters.', 'danger')
+            return render_template('forum/create.html')
+        
+        try:
+            forum_id = execute_query('''
+                INSERT INTO forums (title, description, creator_id, is_public)
+                VALUES (%s, %s, %s, %s)
+            ''', (title, description, session['user_id'], is_public), return_lastrowid=True)
+            
+            # Add creator as admin
+            execute_query('''
+                INSERT INTO forum_members (forum_id, user_id, role)
+                VALUES (%s, %s, 'admin')
+            ''', (forum_id, session['user_id']))
+            
+            flash('Forum created successfully!', 'success')
+            return redirect(url_for('forum.view', forum_id=forum_id))
+            
+        except Exception as e:
+            flash('An error occurred while creating the forum.', 'danger')
+            print(f"Forum creation error: {e}")
+    
+    return render_template('forum/create.html')
+
+@forum_bp.route('/<int:forum_id>')
+def view(forum_id):
+    '''View forum and its posts'''
+    forum = execute_query('''
+        SELECT f.*, u.full_name as creator_name
+        FROM forums f
+        JOIN users u ON f.creator_id = u.id
+        WHERE f.id = %s
+    ''', (forum_id,), fetch=True, fetchone=True)
+    
+    if not forum:
+        flash('Forum not found.', 'danger')
+        return redirect(url_for('forum.list_forums'))
+    
+    # Check if user is member
+    is_member = False
+    user_role = None
+    
+    if 'user_id' in session:
+        member = execute_query(
+            "SELECT role FROM forum_members WHERE forum_id = %s AND user_id = %s",
+            (forum_id, session['user_id']),
+            fetch=True,
+            fetchone=True
+        )
+        is_member = member is not None
+        user_role = member['role'] if member else None
+    
+    # If private forum and not a member, deny access
+    if not forum['is_public'] and not is_member:
+        flash('This is a private forum.', 'danger')
+        return redirect(url_for('forum.list_forums'))
+    
+    # Get posts (top-level only)
+    posts = execute_query('''
+        SELECT p.*, u.full_name as author_name, u.profile_picture as author_picture,
+               (SELECT COUNT(*) FROM forum_posts WHERE parent_post_id = p.id) as reply_count
+        FROM forum_posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.forum_id = %s AND p.parent_post_id IS NULL
+        ORDER BY p.created_at DESC
+    ''', (forum_id,), fetch=True) or []
+    
+    # Get member count
+    member_count = execute_query(
+        "SELECT COUNT(*) as count FROM forum_members WHERE forum_id = %s",
+        (forum_id,),
+        fetch=True,
+        fetchone=True
+    )['count']
+    
+    # Get moderators
+    moderators = execute_query('''
+        SELECT u.id, u.full_name, u.profile_picture, fm.role
+        FROM forum_members fm
+        JOIN users u ON fm.user_id = u.id
+        WHERE fm.forum_id = %s AND fm.role IN ('admin', 'moderator')
+    ''', (forum_id,), fetch=True) or []
+    
+    return render_template('forum/view.html',
+                         forum=forum,
+                         posts=posts,
+                         is_member=is_member,
+                         user_role=user_role,
+                         member_count=member_count,
+                         moderators=moderators)
+
+@forum_bp.route('/<int:forum_id>/join', methods=['POST'])
+@require_login
+def join(forum_id):
+    '''Join a forum'''
+    # Verify forum exists and is public
+    forum = execute_query(
+        "SELECT is_public, title FROM forums WHERE id = %s",
+        (forum_id,),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if not forum:
+        return jsonify({'success': False, 'message': 'Forum not found'}), 404
+    
+    if not forum['is_public']:
+        return jsonify({'success': False, 'message': 'This is a private forum'}), 403
+    
+    # Check if already member
+    existing = execute_query(
+        "SELECT id FROM forum_members WHERE forum_id = %s AND user_id = %s",
+        (forum_id, session['user_id']),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if existing:
+        return jsonify({'success': False, 'message': 'Already a member'}), 400
+    
+    try:
+        execute_query('''
+            INSERT INTO forum_members (forum_id, user_id, role)
+            VALUES (%s, %s, 'member')
+        ''', (forum_id, session['user_id']))
+        
+        return jsonify({'success': True, 'message': 'Joined forum successfully'})
+        
+    except Exception as e:
+        print(f"Join forum error: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred'}), 500
+
+@forum_bp.route('/<int:forum_id>/leave', methods=['POST'])
+@require_login
+def leave(forum_id):
+    '''Leave a forum'''
+    try:
+        execute_query(
+            "DELETE FROM forum_members WHERE forum_id = %s AND user_id = %s",
+            (forum_id, session['user_id'])
+        )
+        
+        flash('You have left the forum.', 'info')
+        return redirect(url_for('forum.list_forums'))
+        
+    except Exception as e:
+        flash('An error occurred.', 'danger')
+        print(f"Leave forum error: {e}")
+        return redirect(url_for('forum.view', forum_id=forum_id))
+
+@forum_bp.route('/<int:forum_id>/post', methods=['POST'])
+@require_login
+def create_post(forum_id):
+    '''Create a new post in forum'''
+    # Check membership
+    member = execute_query(
+        "SELECT id FROM forum_members WHERE forum_id = %s AND user_id = %s",
+        (forum_id, session['user_id']),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if not member:
+        flash('You must be a member to post.', 'danger')
+        return redirect(url_for('forum.view', forum_id=forum_id))
+    
+    title = request.form.get('title', '').strip()
+    content = request.form.get('content', '').strip()
+    parent_post_id = request.form.get('parent_post_id')
+    
+    if not content:
+        flash('Post content cannot be empty.', 'danger')
+        return redirect(url_for('forum.view', forum_id=forum_id))
+    
+    # Handle attachment
+    attachment = None
+    if 'attachment' in request.files:
+        file = request.files['attachment']
+        if file and file.filename and current_app.allowed_file(file.filename):
+            filename = secure_filename(f"forum_{forum_id}_{datetime.now().timestamp()}_{file.filename}")
+            filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'forums', filename)
+            file.save(filepath)
+            attachment = f"uploads/forums/{filename}"
+    
+    try:
+        execute_query('''
+            INSERT INTO forum_posts (forum_id, user_id, title, content, parent_post_id, attachment)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (forum_id, session['user_id'], title or None, content, 
+              parent_post_id or None, attachment))
+        
+        # Update forum's updated_at
+        execute_query(
+            "UPDATE forums SET updated_at = NOW() WHERE id = %s",
+            (forum_id,)
+        )
+        
+        flash('Post created successfully!', 'success')
+        
+    except Exception as e:
+        flash('An error occurred while creating the post.', 'danger')
+        print(f"Create post error: {e}")
+    
+    return redirect(url_for('forum.view', forum_id=forum_id))
+
+@forum_bp.route('/post/<int:post_id>')
+def view_post(post_id):
+    '''View a post and its replies'''
+    post = execute_query('''
+        SELECT p.*, u.full_name as author_name, u.profile_picture as author_picture,
+               f.id as forum_id, f.title as forum_title
+        FROM forum_posts p
+        JOIN users u ON p.user_id = u.id
+        JOIN forums f ON p.forum_id = f.id
+        WHERE p.id = %s
+    ''', (post_id,), fetch=True, fetchone=True)
+    
+    if not post:
+        flash('Post not found.', 'danger')
+        return redirect(url_for('forum.list_forums'))
+    
+    # Get replies
+    replies = execute_query('''
+        SELECT p.*, u.full_name as author_name, u.profile_picture as author_picture
+        FROM forum_posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.parent_post_id = %s
+        ORDER BY p.created_at ASC
+    ''', (post_id,), fetch=True) or []
+    
+    # Check if user is member
+    is_member = False
+    if 'user_id' in session:
+        member = execute_query(
+            "SELECT id FROM forum_members WHERE forum_id = %s AND user_id = %s",
+            (post['forum_id'], session['user_id']),
+            fetch=True,
+            fetchone=True
+        )
+        is_member = member is not None
+    
+    return render_template('forum/post_detail.html', 
+                         post=post, 
+                         replies=replies,
+                         is_member=is_member)
+
+@forum_bp.route('/post/<int:post_id>/delete', methods=['POST'])
+@require_login
+def delete_post(post_id):
+    '''Delete a post'''
+    post = execute_query(
+        "SELECT user_id, forum_id FROM forum_posts WHERE id = %s",
+        (post_id,),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if not post:
+        flash('Post not found.', 'danger')
+        return redirect(url_for('forum.list_forums'))
+    
+    # Check if user is author or moderator
+    can_delete = post['user_id'] == session['user_id']
+    
+    if not can_delete:
+        member = execute_query(
+            "SELECT role FROM forum_members WHERE forum_id = %s AND user_id = %s",
+            (post['forum_id'], session['user_id']),
+            fetch=True,
+            fetchone=True
+        )
+        can_delete = member and member['role'] in ['admin', 'moderator']
+    
+    if not can_delete:
+        flash('You do not have permission to delete this post.', 'danger')
+        return redirect(url_for('forum.view', forum_id=post['forum_id']))
+    
+    try:
+        execute_query("DELETE FROM forum_posts WHERE id = %s", (post_id,))
+        flash('Post deleted.', 'info')
+    except Exception as e:
+        flash('An error occurred.', 'danger')
+        print(f"Delete post error: {e}")
+    
+    return redirect(url_for('forum.view', forum_id=post['forum_id']))
+
+@forum_bp.route('/<int:forum_id>/moderators', methods=['POST'])
+@require_login
+def add_moderator(forum_id):
+    '''Add a moderator to forum'''
+    # Check if current user is admin
+    admin = execute_query(
+        "SELECT id FROM forum_members WHERE forum_id = %s AND user_id = %s AND role = 'admin'",
+        (forum_id, session['user_id']),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if not admin:
+        return jsonify({'success': False, 'message': 'Only admins can add moderators'}), 403
+    
+    user_id = request.form.get('user_id')
+    
+    try:
+        execute_query(
+            "UPDATE forum_members SET role = 'moderator' WHERE forum_id = %s AND user_id = %s",
+            (forum_id, user_id)
+        )
+        
+        flash('Moderator added successfully.', 'success')
+        return redirect(url_for('forum.view', forum_id=forum_id))
+        
+    except Exception as e:
+        flash('An error occurred.', 'danger')
+        print(f"Add moderator error: {e}")
+        return redirect(url_for('forum.view', forum_id=forum_id))
+

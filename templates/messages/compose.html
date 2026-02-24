@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Compose Message{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>✉️ Compose Message</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label>To</label>
+            <select name="recipient_id" class="form-control" required>
+                <option value="">Select recipient...</option>
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Subject</label>
+            <input type="text" name="subject" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label>Message</label>
+            <textarea name="message" class="form-control" rows="6" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">📤 Send</button>
+        <a href="/messages" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

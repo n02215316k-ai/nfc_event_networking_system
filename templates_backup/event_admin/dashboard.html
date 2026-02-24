@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Event Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2><i class="fas fa-calendar-check me-2"></i>Event Admin Dashboard</h2>
+    
+    <!-- Statistics Cards -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5>Total Events</h5>
+                    <h2>{{ stats.total_events }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5>Upcoming Events</h5>
+                    <h2>{{ stats.upcoming_events }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5>Total Registrations</h5>
+                    <h2>{{ stats.total_registrations }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5>Total Attended</h5>
+                    <h2>{{ stats.total_attended }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Events -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">My Events</h5>
+                    <a href="{{ url_for('events.create_event') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>Create New Event
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Event Title</th>
+                                    <th>Date</th>
+                                    <th>Registrations</th>
+                                    <th>Attended</th>
+                                    <th>Currently Present</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for event in my_events %}
+                                <tr>
+                                    <td>{{ event.title }}</td>
+                                    <td>{{ event.start_date|datetime_format('%b %d, %Y') }}</td>
+                                    <td><span class="badge bg-primary">{{ event.total_registrations }}</span></td>
+                                    <td><span class="badge bg-success">{{ event.total_attended }}</span></td>
+                                    <td><span class="badge bg-info">{{ event.currently_present }}</span></td>
+                                    <td>
+                                        <a href="{{ url_for('event_admin.event_details', event_id=event.id) }}" 
+                                           class="btn btn-sm btn-primary">Manage</a>
+                                        <a href="{{ url_for('event_admin.live_attendance', event_id=event.id) }}" 
+                                           class="btn btn-sm btn-success">Live</a>
+                                        <a href="{{ url_for('event_admin.event_reports', event_id=event.id) }}" 
+                                           class="btn btn-sm btn-info">Reports</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_activity %}
+                    <div class="list-group">
+                        {% for activity in recent_activity %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ activity.user_name }}</strong>
+                                    <span class="badge bg-{{ 'success' if activity.scan_type == 'check_in' else 'warning' if activity.scan_type == 'check_out' else 'info' }}">
+                                        {{ activity.scan_type|replace('_', ' ')|title }}
+                                    </span>
+                                    - {{ activity.event_title }}
+                                </div>
+                                <small class="text-muted">{{ activity.created_at|timeago }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No recent activity</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

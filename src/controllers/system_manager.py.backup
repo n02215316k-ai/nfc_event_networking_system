@@ -1,0 +1,36 @@
+# filepath: c:\Users\lenovo\Downloads\nfc\src\controllers\system_manager.py
+from flask import Blueprint, render_template, redirect, url_for, session, flash
+from database.db import db
+
+system_bp = Blueprint('system', __name__, url_prefix='/system')
+
+@system_bp.route('/dashboard')
+def dashboard():
+    """System manager dashboard"""
+    if 'user_id' not in session or session.get('user_role') != 'system_manager':
+        flash('Access denied', 'error')
+        return redirect(url_for('index'))
+    
+    stats = {
+        'total_users': db.execute_query("SELECT COUNT(*) as count FROM users", fetch=True, fetchone=True)['count'],
+        'total_events': db.execute_query("SELECT COUNT(*) as count FROM events", fetch=True, fetchone=True)['count'],
+        'pending_documents': db.execute_query("SELECT COUNT(*) as count FROM documents WHERE status = 'pending'", fetch=True, fetchone=True)['count']
+    }
+    
+    return render_template('system/dashboard.html', stats=stats)
+
+@system_bp.route('/documents')
+def verify_documents():
+    """View documents for verification"""
+    if 'user_id' not in session or session.get('user_role') != 'system_manager':
+        return redirect(url_for('index'))
+    
+    documents = db.execute_query("""
+        SELECT d.*, u.full_name, u.email
+        FROM documents d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.status = 'pending'
+        ORDER BY d.submitted_at DESC
+    """, fetch=True) or []
+    
+    return render_template('system/documents.html', documents=documents)

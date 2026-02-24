@@ -1,0 +1,62 @@
+import os
+import re
+
+class Colors:
+    GREEN = '\033[92m'
+    CYAN = '\033[96m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*70}{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}FIXING APP.PY IMPORTS{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}{'='*70}{Colors.END}\n")
+
+# Read app.py
+with open('app.py', 'r', encoding='utf-8') as f:
+    app_content = f.read()
+
+# Backup
+with open('app.py.backup_imports', 'w', encoding='utf-8') as f:
+    f.write(app_content)
+print(f"{Colors.GREEN}✓{Colors.END} Backup created: app.py.backup_imports\n")
+
+# Find all database imports
+print(f"{Colors.CYAN}Finding database imports...{Colors.END}\n")
+
+old_imports = [
+    'from database.db import db',
+    'from database import db',
+    'import database.db',
+    'from database.db import get_db_connection',
+]
+
+found_imports = []
+for old_import in old_imports:
+    if old_import in app_content:
+        print(f"{Colors.YELLOW}Found: {old_import}{Colors.END}")
+        found_imports.append(old_import)
+
+if not found_imports:
+    print(f"{Colors.GREEN}No problematic imports found{Colors.END}")
+else:
+    print(f"\n{Colors.CYAN}Replacing with: from database import get_db_connection{Colors.END}\n")
+    
+    # Replace all variations
+    app_content = re.sub(r'from database\.db import.*', 'from database import get_db_connection', app_content)
+    app_content = re.sub(r'from database import db', 'from database import get_db_connection', app_content)
+    app_content = re.sub(r'import database\.db', 'from database import get_db_connection', app_content)
+    
+    # Write back
+    with open('app.py', 'w', encoding='utf-8') as f:
+        f.write(app_content)
+    
+    print(f"{Colors.GREEN}✓ Imports fixed!{Colors.END}\n")
+
+print(f"{Colors.BOLD}{Colors.GREEN}{'='*70}{Colors.END}")
+print(f"{Colors.BOLD}{Colors.GREEN}✅ IMPORT FIX COMPLETE{Colors.END}")
+print(f"{Colors.BOLD}{Colors.GREEN}{'='*70}{Colors.END}\n")
+
+print(f"{Colors.YELLOW}Now try running:{Colors.END}")
+print(f"  {Colors.CYAN}python app.py{Colors.END}\n")

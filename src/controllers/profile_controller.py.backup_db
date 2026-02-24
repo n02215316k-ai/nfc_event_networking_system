@@ -1,0 +1,367 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
+from database import get_db_connection
+from functools import wraps
+import qrcode
+import io
+import base64
+
+profile_bp = Blueprint('profile', __name__)
+
+def login_required(f):
+    '''Decorator to require login'''
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login to continue', 'error')
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@profile_bp.route('/<int:user_id>')
+def view(user_id):
+    '''View user profile'''
+    user = db.execute_query(
+        "SELECT * FROM users WHERE id = %s",
+        (user_id,),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('index'))
+    
+    # Get qualifications
+    qualifications = db.execute_query(
+        "SELECT * FROM qualifications WHERE user_id = %s ORDER BY year_obtained DESC",
+        (user_id,),
+        fetch=True
+    ) or []
+    
+    # Get follower/following counts
+    followers_count = db.execute_query(
+        "SELECT COUNT(*) as count FROM followers WHERE following_id = %s",
+        (user_id,),
+        fetch=True,
+        fetchone=True
+    )['count']
+    
+    following_count = db.execute_query(
+        "SELECT COUNT(*) as count FROM followers WHERE follower_id = %s",
+        (user_id,),
+        fetch=True,
+        fetchone=True
+    )['count']
+    
+    # Check if current user is following this user
+    is_following = False
+    if 'user_id' in session and session['user_id'] != user_id:
+        follow_record = db.execute_query(
+            "SELECT id FROM followers WHERE follower_id = %s AND following_id = %s",
+            (session['user_id'], user_id),
+            fetch=True,
+            fetchone=True
+        )
+        is_following = follow_record is not None
+    
+    # Get recent events (created or attending)
+    recent_events = db.execute_query('''
+        SELECT e.*, 'creator' as relation
+        FROM events e
+        WHERE e.creator_id = %s AND e.status = 'published'
+        UNION
+        SELECT e.*, 'attendee' as relation
+        FROM events e
+        JOIN attendance a ON e.id = a.event_id
+        WHERE a.user_id = %s AND e.status = 'published'
+        ORDER BY start_date DESC
+        LIMIT 5
+    ''', (user_id, user_id), fetch=True) or []
+    
+    # Get forum memberships
+    forum_count = db.execute_query(
+        "SELECT COUNT(*) as count FROM forum_members WHERE user_id = %s",
+        (user_id,),
+        fetch=True,
+        fetchone=True
+    )['count']
+    
+    is_own_profile = 'user_id' in session and session['user_id'] == user_id
+    
+    return render_template('profile/view.html',
+                         user=user,
+                         qualifications=qualifications,
+                         followers_count=followers_count,
+                         following_count=following_count,
+                         is_following=is_following,
+                         recent_events=recent_events,
+                         forum_count=forum_count,
+                         is_own_profile=is_own_profile)
+
+@profile_bp.route('/edit', methods=['GET', 'POST'])
+@login_required
+def edit():
+    '''Edit current user profile'''
+    user = db.execute_query(
+        "SELECT * FROM users WHERE id = %s",
+        (session['user_id'],),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if request.method == 'POST':
+        # Get form data
+        full_name = request.form.get('full_name', '').strip()
+        phone_number = request.form.get('phone_number', '').strip()
+        date_of_birth = request.form.get('date_of_birth', '')
+        gender = request.form.get('gender', '')
+        biography = request.form.get('biography', '').strip()
+        current_employment = request.form.get('current_employment', '').strip()
+        current_research_area = request.form.get('current_research_area', '').strip()  # NEW FIELD
+        
+        # Handle profile picture upload
+        profile_picture = user['profile_picture']
+        if 'profile_picture' in request.files:
+            file = request.files['profile_picture']
+            if file and file.filename and current_app.allowed_file(file.filename):
+                filename = secure_filename(f"profile_{session['user_id']}_{datetime.now().timestamp()}_{file.filename}")
+                filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profiles', filename)
+                file.save(filepath)
+                profile_picture = f"uploads/profiles/{filename}"
+        
+        # Update user
+        try:
+            db.execute_query('''
+                UPDATE users 
+                SET full_name = %s, phone_number = %s, date_of_birth = %s, gender = %s,
+                    biography = %s, current_employment = %s, current_research_area = %s,
+                    profile_picture = %s, updated_at = NOW()
+                WHERE id = %s
+            ''', (full_name, phone_number, date_of_birth or None, gender or None,
+                  biography, current_employment, current_research_area,
+                  profile_picture, session['user_id']))
+            
+            # Update session
+            session['user_name'] = full_name
+            
+            flash('Profile updated successfully!', 'success')
+            return redirect(url_for('profile.view', user_id=session['user_id']))
+            
+        except Exception as e:
+            flash('An error occurred while updating your profile.', 'danger')
+            print(f"Profile update error: {e}")
+    
+    return render_template('profile/edit.html', user=user)
+
+@profile_bp.route('/qualifications/add', methods=['POST'])
+@login_required
+def add_qualification():
+    '''Add a qualification'''
+    qualification_type = request.form.get('qualification_type', '')
+    institution = request.form.get('institution', '').strip()
+    field_of_study = request.form.get('field_of_study', '').strip()
+    year_obtained = request.form.get('year_obtained', '')
+    
+    # Handle document upload
+    document_path = None
+    if 'document' in request.files:
+        file = request.files['document']
+        if file and file.filename and current_app.allowed_file(file.filename):
+            filename = secure_filename(f"qual_{session['user_id']}_{datetime.now().timestamp()}_{file.filename}")
+            filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'qualifications', filename)
+            file.save(filepath)
+            document_path = f"uploads/qualifications/{filename}"
+    
+    if not institution or not qualification_type:
+        flash('Please provide qualification type and institution.', 'danger')
+    else:
+        try:
+            db.execute_query('''
+                INSERT INTO qualifications (user_id, qualification_type, institution, 
+                                          field_of_study, year_obtained, document_path, verification_status)
+                VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+            ''', (session['user_id'], qualification_type, institution, field_of_study,
+                  year_obtained or None, document_path))
+            
+            flash('Qualification added successfully! Pending verification.', 'success')
+            
+        except Exception as e:
+            flash('An error occurred while adding qualification.', 'danger')
+            print(f"Add qualification error: {e}")
+    
+    return redirect(url_for('profile.view', user_id=session['user_id']))
+
+@profile_bp.route('/qualifications/<int:qual_id>/delete', methods=['POST'])
+@login_required
+def delete_qualification(qual_id):
+    '''Delete a qualification'''
+    # Verify ownership
+    qual = db.execute_query(
+        "SELECT user_id FROM qualifications WHERE id = %s",
+        (qual_id,),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if qual and qual['user_id'] == session['user_id']:
+        db.execute_query("DELETE FROM qualifications WHERE id = %s", (qual_id,))
+        flash('Qualification deleted.', 'info')
+    else:
+        flash('You do not have permission to delete this qualification.', 'danger')
+    
+    return redirect(url_for('profile.view', user_id=session['user_id']))
+
+@profile_bp.route('/follow/<int:user_id>', methods=['POST'])
+@login_required
+def follow(user_id):
+    '''Follow a user'''
+    if user_id == session['user_id']:
+        return jsonify({'success': False, 'message': 'Cannot follow yourself'}), 400
+    
+    # Check if already following
+    existing = db.execute_query(
+        "SELECT id FROM followers WHERE follower_id = %s AND following_id = %s",
+        (session['user_id'], user_id),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if existing:
+        return jsonify({'success': False, 'message': 'Already following'}), 400
+    
+    try:
+        db.execute_query(
+            "INSERT INTO followers (follower_id, following_id) VALUES (%s, %s)",
+            (session['user_id'], user_id)
+        )
+        
+        # Notify user
+        user = db.execute_query(
+            "SELECT full_name FROM users WHERE id = %s",
+            (user_id,),
+            fetch=True,
+            fetchone=True
+        )
+        
+        if user:
+            current_app.create_notification(
+                user_id,
+                'new_follower',
+                'New Follower',
+                f"{session['user_name']} started following you",
+                url_for('profile.view', user_id=session['user_id'])
+            )
+        
+        return jsonify({'success': True, 'message': 'Now following'})
+        
+    except Exception as e:
+        print(f"Follow error: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred'}), 500
+
+@profile_bp.route('/unfollow/<int:user_id>', methods=['POST'])
+@login_required
+def unfollow(user_id):
+    '''Unfollow a user'''
+    try:
+        db.execute_query(
+            "DELETE FROM followers WHERE follower_id = %s AND following_id = %s",
+            (session['user_id'], user_id)
+        )
+        
+        return jsonify({'success': True, 'message': 'Unfollowed'})
+        
+    except Exception as e:
+        print(f"Unfollow error: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred'}), 500
+
+@profile_bp.route('/followers/<int:user_id>')
+def followers(user_id):
+    '''View user followers'''
+    user = db.execute_query(
+        "SELECT full_name FROM users WHERE id = %s",
+        (user_id,),
+        fetch=True,
+        fetchone=True
+    )
+    
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('index'))
+    
+    followers_list = db.execute_query('''
+        SELECT u.id, u.full_name, u.profile_picture, u.current_employment, f.created_at
+        FROM followers f
+        JOIN users u ON f.follower_id = u.id
+        WHERE f.following_id = %s
+        ORDER BY f.created_at DESC
+    ''', (user_id,), fetch=True) or []
+    
+    following_list = db.execute_query('''
+        SELECT u.id, u.full_name, u.profile_picture, u.current_employment, f.created_at
+        FROM followers f
+        JOIN users u ON f.following_id = u.id
+        WHERE f.follower_id = %s
+        ORDER BY f.created_at DESC
+    ''', (user_id,), fetch=True) or []
+    
+    return render_template('profile/followers.html',
+                         user=user,
+                         followers=followers_list,
+                         following=following_list,
+                         user_id=user_id)
+
+@profile_bp.route('/my-nfc')
+@login_required
+def my_nfc():
+    '''User's personal NFC/QR codes'''
+    from src.controllers.nfc_controller import generate_user_nfc_code, generate_event_qr_code
+    import qrcode
+    import io
+    import base64
+    
+    user_id = session.get('user_id')
+    
+    # Get user info
+    user = db.execute_query(
+        'SELECT * FROM users WHERE id = %s',
+        (user_id,), fetch=True, fetchone=True
+    )
+    
+    # Generate NFC code
+    nfc_code = generate_user_nfc_code(user['id'], user['email'])
+    
+    # Generate personal QR code
+    qr_data = f"user:{user_id}:{user['email']}"
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    qr_image = f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+    
+    # Get user's registered events
+    my_events = db.execute_query('''
+        SELECT e.* FROM events e
+        JOIN event_registrations er ON e.id = er.event_id
+        WHERE er.user_id = %s
+        ORDER BY e.start_date DESC
+    ''', (user_id,), fetch=True) or []
+    
+    return render_template('profile/my_nfc.html',
+                         user=user,
+                         nfc_code=nfc_code,
+                         qr_image=qr_image,
+                         my_events=my_events)
+
+@profile_bp.route('/refresh-nfc')
+@login_required
+def refresh_nfc():
+    '''Refresh NFC code'''
+    from src.controllers.nfc_controller import generate_user_nfc_code
+    
+    user_id = session.get('user_id')
+    nfc_code = generate_user_nfc_code(user['id'], user['email'])
+    
+    return jsonify({'nfc_code': nfc_code})

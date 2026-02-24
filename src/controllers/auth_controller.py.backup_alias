@@ -1,0 +1,192 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
+from database import get_db_connection
+import re
+
+
+# Database helper function
+def execute_query(query, params=None, fetch=False, fetchone=False):
+    """Execute database query with proper connection handling"""
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query, params or ())
+        
+        if fetch:
+            result = cursor.fetchone() if fetchone else cursor.fetchall()
+        else:
+            conn.commit()
+            result = cursor.lastrowid if cursor.lastrowid else True
+        
+        cursor.close()
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"Database error: {e}")
+        if conn:
+            conn.close()
+        return None
+
+
+auth_bp = Blueprint('auth', __name__)
+
+def is_valid_email(email):
+    '''Validate email format'''
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+@auth_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    '''User login'''
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        
+        if not email or not password:
+            flash('Please provide both email and password.', 'danger')
+            return render_template('auth/login.html')
+        
+        # Get user from database
+        user = execute_query(
+            "SELECT * FROM users WHERE email = %s",
+            (email,),
+            fetch=True,
+            fetchone=True
+        )
+        
+        if user and check_password_hash(user['password_hash'], password):
+            # Successful login
+            session['user_id'] = user['id']
+            session['user_name'] = user['full_name']
+            session['user_role'] = user['role']
+            session['user_email'] = user['email']
+            
+            flash(f'Welcome back, {user["full_name"]}!', 'success')
+            
+            # Redirect based on role
+            if user['role'] == 'system_manager':
+                return redirect(url_for('system_manager.dashboard'))
+            else:
+                return redirect(url_for('index'))
+        else:
+            flash('Invalid email or password.', 'danger')
+    
+    return render_template('auth/login.html')
+
+@auth_bp.route('/signup', methods=['GET', 'POST'])
+def signup():
+    '''User registration'''
+    if request.method == 'POST':
+        # Get form data
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        full_name = request.form.get('full_name', '').strip()
+        phone_number = request.form.get('phone_number', '').strip()
+        
+        # Validation
+        errors = []
+        
+        if not email or not is_valid_email(email):
+            errors.append('Please provide a valid email address.')
+        
+        if not password or len(password) < 6:
+            errors.append('Password must be at least 6 characters long.')
+        
+        if password != confirm_password:
+            errors.append('Passwords do not match.')
+        
+        if not full_name or len(full_name) < 3:
+            errors.append('Please provide your full name.')
+        
+        if errors:
+            for error in errors:
+                flash(error, 'danger')
+            return render_template('auth/signup.html')
+        
+        # Check if email already exists
+        existing_user = execute_query(
+            "SELECT id FROM users WHERE email = %s",
+            (email,),
+            fetch=True,
+            fetchone=True
+        )
+        
+        if existing_user:
+            flash('This email is already registered. Please login instead.', 'danger')
+            return render_template('auth/signup.html')
+        
+        # Create new user
+        try:
+            password_hash = generate_password_hash(password)
+            
+            user_id = execute_query('''
+                INSERT INTO users (email, password_hash, full_name, phone_number, role)
+                VALUES (%s, %s, %s, %s, 'user')
+            ''', (email, password_hash, full_name, phone_number), return_lastrowid=True)
+            
+            # Auto-login
+            session['user_id'] = user_id
+            session['user_name'] = full_name
+            session['user_role'] = 'user'
+            session['user_email'] = email
+            
+            flash('Account created successfully! Please complete your profile.', 'success')
+            return redirect(url_for('profile.edit'))
+            
+        except Exception as e:
+            flash('An error occurred during registration. Please try again.', 'danger')
+            print(f"Signup error: {e}")
+    
+    return render_template('auth/signup.html')
+
+@auth_bp.route('/logout')
+def logout():
+    '''User logout'''
+    session.clear()
+    flash('You have been logged out successfully.', 'info')
+    return redirect(url_for('auth.login'))
+
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
+def change_password():
+    '''Change user password'''
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Get current user
+        user = execute_query(
+            "SELECT password_hash FROM users WHERE id = %s",
+            (session['user_id'],),
+            fetch=True,
+            fetchone=True
+        )
+        
+        # Validate
+        if not check_password_hash(user['password_hash'], current_password):
+            flash('Current password is incorrect.', 'danger')
+        elif len(new_password) < 6:
+            flash('New password must be at least 6 characters long.', 'danger')
+        elif new_password != confirm_password:
+            flash('New passwords do not match.', 'danger')
+        else:
+            # Update password
+            new_hash = generate_password_hash(new_password)
+            execute_query(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (new_hash, session['user_id'])
+            )
+            
+            flash('Password changed successfully!', 'success')
+            return redirect(url_for('profile.view', user_id=session['user_id']))
+    
+    return render_template('auth/change_password.html')

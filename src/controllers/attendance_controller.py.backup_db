@@ -1,0 +1,56 @@
+from flask import Blueprint, render_template, request, jsonify, session
+from database import get_db_connection
+from datetime import datetime
+
+attendance_bp = Blueprint('attendance', __name__)
+
+@attendance_bp.route('/scan', methods=['GET', 'POST'])
+def scan():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    if request.method == 'POST':
+        badge_id = request.form.get('badge_id')
+        scan_type = request.form.get('scan_type', 'event')
+        event_id = request.form.get('event_id')
+        
+        # Get user by badge ID
+        scanned_user = db.execute_query(
+            "SELECT * FROM users WHERE nfc_badge_id = %s",
+            (badge_id,), fetch=True, fetchone=True
+        )
+        
+        if not scanned_user:
+            return jsonify({'success': False, 'error': 'Invalid badge ID'})
+        
+        if scan_type == 'event' and event_id:
+            # Check if user is registered
+            attendance = db.execute_query(
+                "SELECT * FROM attendance WHERE event_id = %s AND user_id = %s",
+                (event_id, scanned_user['id']), fetch=True, fetchone=True
+            )
+            
+            if not attendance:
+                return jsonify({'success': False, 'error': 'User not registered for this event'})
+            
+            # Toggle check-in/out
+            if attendance['status'] == 'registered' or attendance['status'] == 'checked_out':
+                db.execute_query("""
+                    UPDATE attendance 
+                    SET status = 'checked_in', check_in_time = %s, scan_count = scan_count + 1
+                    WHERE id = %s
+                """, (datetime.now(), attendance['id']))
+                message = f"{scanned_user['full_name']} checked in successfully!"
+            else:
+                db.execute_query("""
+                    UPDATE attendance 
+                    SET status = 'checked_out', check_out_time = %s, scan_count = scan_count + 1
+                    WHERE id = %s
+                """, (datetime.now(), attendance['id']))
+                message = f"{scanned_user['full_name']} checked out successfully!"
+            
+            return jsonify({'success': True, 'message': message})
+        
+        return jsonify({'success': False, 'error': 'Invalid scan type'})
+    
+    return render_template('scan/scanner.html')

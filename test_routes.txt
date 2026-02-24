@@ -1,0 +1,13 @@
+# Add these test routes to app.py to verify NFC functionality
+
+@app.route('/test-nfc')
+def test_nfc():
+    '''Test NFC routes'''
+    return '''
+    <h1>NFC Routes Test</h1>
+    <ul>
+        <li><a href="/nfc/scanner">Scanner Page</a></li>
+        <li><a href="/profile/my-nfc">My QR Code</a></li>
+        <li><a href="/event-admin/dashboard">Event Admin Dashboard</a></li>
+    </ul>
+    '''

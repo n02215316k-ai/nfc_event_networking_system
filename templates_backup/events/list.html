@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Events - NFC Events{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-calendar-alt me-2"></i>All Events</h2>
+            <p class="text-muted">Discover and register for upcoming events</p>
+        </div>
+        {% if current_user %}
+        <div>
+            <a href="{{ url_for('events.create_event') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>Create Event
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('events.list_events') }}">
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-select" onchange="this.form.submit()">
+                            <option value="">All Categories</option>
+                            <option value="conference" {% if selected_category == 'conference' %}selected{% endif %}>Conference</option>
+                            <option value="workshop" {% if selected_category == 'workshop' %}selected{% endif %}>Workshop</option>
+                            <option value="seminar" {% if selected_category == 'seminar' %}selected{% endif %}>Seminar</option>
+                            <option value="networking" {% if selected_category == 'networking' %}selected{% endif %}>Networking</option>
+                            <option value="other" {% if selected_category == 'other' %}selected{% endif %}>Other</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Events Grid -->
+    <div class="row">
+        {% if events %}
+            {% for event in events %}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    {% if event.cover_image %}
+                    <img src="{{ url_for('static', filename=event.cover_image) }}" 
+                         class="card-img-top" style="height: 200px; object-fit: cover;" 
+                         alt="{{ event.title }}">
+                    {% else %}
+                    <div class="card-img-top bg-primary text-white d-flex align-items-center justify-content-center" 
+                         style="height: 200px;">
+                        <i class="fas fa-calendar-alt fa-4x"></i>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card-body d-flex flex-column">
+                        <div class="mb-2">
+                            <span class="badge bg-info">{{ event.category|title }}</span>
+                            {% if event.is_registered %}
+                            <span class="badge bg-success">Registered</span>
+                            {% endif %}
+                        </div>
+                        
+                        <h5 class="card-title">{{ event.title }}</h5>
+                        
+                        <p class="card-text text-muted small flex-grow-1">
+                            {{ event.description|truncate_words(20) }}
+                        </p>
+                        
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="fas fa-user me-1"></i>{{ event.creator_name }}
+                            </small>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ event.start_date|datetime_format('%b %d, %Y at %I:%M %p') }}
+                            </small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">
+                                <i class="fas fa-map-marker-alt me-1"></i>{{ event.location }}
+                            </small>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="fas fa-users me-1"></i>
+                                {{ event.registration_count }} registered
+                                {% if event.max_attendees %}
+                                / {{ event.max_attendees }} max
+                                {% endif %}
+                            </small>
+                        </div>
+                        
+                        <a href="{{ url_for('events.detail', event_id=event.id) }}" 
+                           class="btn btn-primary w-100 mt-auto">
+                            View Details <i class="fas fa-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-2x mb-3"></i>
+                <h5>No events found</h5>
+                <p>There are no events available at the moment.</p>
+                {% if current_user %}
+                <a href="{{ url_for('events.create_event') }}" class="btn btn-primary mt-2">
+                    <i class="fas fa-plus-circle me-2"></i>Create First Event
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

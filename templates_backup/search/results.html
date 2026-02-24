@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Search: {{ query }}{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>🔍 Search Results: "{{ query }}"</h2>
+    
+    {% if results.events %}
+    <h3>Events</h3>
+    {% for event in results.events %}
+    <div><a href="/events/{{ event.id }}">{{ event.title }}</a></div>
+    {% endfor %}
+    {% endif %}
+    
+    {% if results.users %}
+    <h3>Users</h3>
+    {% for user in results.users %}
+    <div><a href="/users/{{ user.id }}">{{ user.full_name }}</a></div>
+    {% endfor %}
+    {% endif %}
+    
+    {% if not results.events and not results.users and not results.forums %}
+    <p style="text-align: center; padding: 2rem;">No results found</p>
+    {% endif %}
+</div>
+{% endblock %}

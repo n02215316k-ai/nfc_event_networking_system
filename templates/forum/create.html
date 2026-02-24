@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Forum{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            
+            <div class="card shadow-lg animate-in">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        Create New Forum
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    
+                    <form method="POST" action="/forum/create">
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-heading me-2"></i>
+                                Forum Title
+                            </label>
+                            <input type="text" name="title" class="form-control form-control-lg" 
+                                   placeholder="Enter forum title" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-align-left me-2"></i>
+                                Description
+                            </label>
+                            <textarea name="description" class="form-control" rows="5" 
+                                      placeholder="Describe what this forum is about" required></textarea>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-folder me-2"></i>
+                                Category
+                            </label>
+                            <select name="category" class="form-select form-select-lg" required>
+                                <option value="">-- Select Category --</option>
+                                <option value="general">General Discussion</option>
+                                <option value="events">Events</option>
+                                <option value="networking">Networking</option>
+                                <option value="tech">Technology</option>
+                                <option value="announcements">Announcements</option>
+                            </select>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save me-2"></i>
+                                Create Forum
+                            </button>
+                            <a href="/forums" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>
+                                Cancel
+                            </a>
+                        </div>
+                        
+                    </form>
+                    
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+{% endblock %}

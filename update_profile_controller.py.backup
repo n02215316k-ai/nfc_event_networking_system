@@ -1,0 +1,96 @@
+import os
+
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    CYAN = '\033[96m'
+    END = '\033[0m'
+
+PROFILE_NFC_ROUTES = """
+
+@profile_bp.route('/my-nfc')
+@login_required
+def my_nfc():
+    '''User's personal NFC/QR codes'''
+    from controllers.nfc_controller import generate_user_nfc_code, generate_event_qr_code
+    import qrcode
+    import io
+    import base64
+    
+    user_id = session.get('user_id')
+    
+    # Get user info
+    user = db.execute_query(
+        'SELECT * FROM users WHERE id = %s',
+        (user_id,), fetch=True, fetchone=True
+    )
+    
+    # Generate NFC code
+    nfc_code = generate_user_nfc_code(user_id)
+    
+    # Generate personal QR code
+    qr_data = f"user:{user_id}:{user['email']}"
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    qr_image = f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+    
+    # Get user's registered events
+    my_events = db.execute_query('''
+        SELECT e.* FROM events e
+        JOIN event_registrations er ON e.id = er.event_id
+        WHERE er.user_id = %s
+        ORDER BY e.start_date DESC
+    ''', (user_id,), fetch=True) or []
+    
+    return render_template('profile/my_nfc.html',
+                         user=user,
+                         nfc_code=nfc_code,
+                         qr_image=qr_image,
+                         my_events=my_events)
+
+@profile_bp.route('/refresh-nfc')
+@login_required
+def refresh_nfc():
+    '''Refresh NFC code'''
+    from controllers.nfc_controller import generate_user_nfc_code
+    
+    user_id = session.get('user_id')
+    nfc_code = generate_user_nfc_code(user_id)
+    
+    return jsonify({'nfc_code': nfc_code})
+"""
+
+print(f"\n{Colors.CYAN}Updating profile controller...{Colors.END}\n")
+
+filepath = 'src/controllers/profile_controller.py'
+
+if os.path.exists(filepath):
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    if 'my_nfc' not in content:
+        # Add imports if not present
+        if 'import qrcode' not in content:
+            content = content.replace(
+                'from database.db import db',
+                'from database.db import db\nimport qrcode\nimport io\nimport base64'
+            )
+        
+        # Add routes at the end
+        content += PROFILE_NFC_ROUTES
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        print(f"{Colors.GREEN}✓{Colors.END} Updated profile controller with NFC/QR routes")
+    else:
+        print(f"{Colors.YELLOW}○{Colors.END} Profile controller already has NFC routes")
+else:
+    print(f"{Colors.YELLOW}⚠{Colors.END} Profile controller not found at {filepath}")
+
+print(f"\n{Colors.GREEN}✅ Profile controller update complete!{Colors.END}\n")

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Reports - {{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-chart-line me-2"></i>Event Reports: {{ event.title }}</h2>
+        <div>
+            <button class="btn btn-primary" onclick="window.print()">
+                <i class="fas fa-print me-1"></i>Print Report
+            </button>
+            <a href="{{ url_for('event_admin.event_details', event_id=event.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Attendance Rate</h6>
+                    <h2 class="text-primary">
+                        {% set rate = (attendance_stats.total_checked_in / attendance_stats.total_registered * 100) if attendance_stats.total_registered > 0 else 0 %}
+                        {{ "%.1f"|format(rate) }}%
+                    </h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total Networking</h6>
+                    <h2 class="text-success">{{ networking_stats.total_connections }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Avg. Duration</h6>
+                    <h2 class="text-info">2.5h</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Peak Attendance</h6>
+                    <h2 class="text-warning">
+                        {{ attendance_stats.currently_present or 0 }}
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance Timeline -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Attendance Over Time</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="attendanceTimelineChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Networkers -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Top Networkers</h5>
+                </div>
+                <div class="card-body">
+                    {% if top_networkers %}
+                    <div class="list-group">
+                        {% for networker in top_networkers %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ networker.full_name }}
+                            <span class="badge bg-primary rounded-pill">{{ networker.connections }} connections</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No networking data available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Check-in Methods -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Check-in Method Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="checkinMethodsChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Attendance Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Detailed Attendance Log</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Attendee</th>
+                                    <th>Action</th>
+                                    <th>Method</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in attendance_timeline %}
+                                <tr>
+                                    <td>{{ item.hour|datetime_format('%I:%M %p') }}</td>
+                                    <td colspan="4">
+                                        <strong>{{ item.count }} check-ins</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Attendance timeline chart
+const timelineCtx = document.getElementById('attendanceTimelineChart').getContext('2d');
+const timelineData = {{ attendance_timeline|tojson }};
+
+new Chart(timelineCtx, {
+    type: 'line',
+    data: {
+        labels: timelineData.map(d => new Date(d.hour).toLocaleTimeString()),
+        datasets: [{
+            label: 'Check-ins',
+            data: timelineData.map(d => d.count),
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Check-in methods pie chart
+const methodsCtx = document.getElementById('checkinMethodsChart').getContext('2d');
+const methodsData = {{ checkin_methods|tojson }};
+
+new Chart(methodsCtx, {
+    type: 'pie',
+    data: {
+        labels: methodsData.map(m => m.check_in_method.toUpperCase()),
+        datasets: [{
+            data: methodsData.map(m => m.count),
+            backgroundColor: ['#0d6efd', '#198754', '#ffc107']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

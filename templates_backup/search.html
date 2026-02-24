@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Search - NFC Events{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-body">
+            <h2 class="mb-4"><i class="fas fa-search me-2"></i>Search</h2>
+            
+            <form method="GET" action="{{ url_for('search') }}">
+                <div class="input-group input-group-lg mb-4">
+                    <input type="text" class="form-control" name="q" 
+                           placeholder="Search events, users, forums..." 
+                           value="{{ query }}" autofocus>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i>Search
+                    </button>
+                </div>
+            </form>
+            
+            {% if query %}
+            <h5 class="mb-3">Search Results for "{{ query }}"</h5>
+            
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#events">
+                        Events ({{ results.events|length }})
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#users">
+                        Users ({{ results.users|length }})
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#forums">
+                        Forums ({{ results.forums|length }})
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="events">
+                    {% if results.events %}
+                    <div class="list-group">
+                        {% for event in results.events %}
+                        <a href="{{ url_for('events.detail', event_id=event.id) }}" 
+                           class="list-group-item list-group-item-action">
+                            <h6>{{ event.title }}</h6>
+                            <p class="mb-1 text-muted">{{ event.description|truncate_words(20) }}</p>
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ event.start_date|datetime_format('%b %d, %Y') }}
+                            </small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No events found.</p>
+                    {% endif %}
+                </div>
+                
+                <div class="tab-pane fade" id="users">
+                    {% if results.users %}
+                    <div class="row">
+                        {% for user in results.users %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ url_for('static', filename=user.profile_picture or 'uploads/default-avatar.png') }}" 
+                                             class="profile-img me-3" alt="{{ user.full_name }}">
+                                        <div>
+                                            <h6 class="mb-0">{{ user.full_name }}</h6>
+                                            <small class="text-muted">{{ user.current_employment or 'User' }}</small>
+                                        </div>
+                                    </div>
+                                    <a href="{{ url_for('profile.view', user_id=user.id) }}" 
+                                       class="btn btn-sm btn-outline-primary mt-2 w-100">
+                                        View Profile
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No users found.</p>
+                    {% endif %}
+                </div>
+                
+                <div class="tab-pane fade" id="forums">
+                    {% if results.forums %}
+                    <div class="list-group">
+                        {% for forum in results.forums %}
+                        <a href="{{ url_for('forum.view', forum_id=forum.id) }}" 
+                           class="list-group-item list-group-item-action">
+                            <h6>{{ forum.title }}</h6>
+                            <p class="mb-1 text-muted">{{ forum.description|truncate_words(20) }}</p>
+                            <small class="text-muted">
+                                <i class="fas fa-users me-1"></i>{{ forum.member_count }} members
+                            </small>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No forums found.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

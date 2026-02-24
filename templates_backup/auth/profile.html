@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>My Profile</h2>
+    
+    <div class="grid grid-2 mt-3">
+        <div>
+            <p><strong>Name:</strong> {{ user.full_name }}</p>
+            <p><strong>Email:</strong> {{ user.email }}</p>
+            <p><strong>Role:</strong> {{ user.role }}</p>
+            <p><strong>NFC Badge ID:</strong> {{ user.nfc_badge_id }}</p>
+        </div>
+        
+        <div style="text-align: center;">
+            {% if user.qr_code %}
+                <img src="{{ url_for('static', filename='qr_codes/' + user.qr_code) }}" 
+                     alt="QR Code" style="max-width: 200px;">
+                <p><small>Your QR Code</small></p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>My Documents</h3>
+    {% if documents %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documents %}
+                <tr>
+                    <td>{{ doc.title }}</td>
+                    <td>{{ doc.document_type }}</td>
+                    <td>{{ doc.status }}</td>
+                    <td>{{ doc.submitted_at|datetime_format }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No documents submitted yet</p>
+    {% endif %}
+</div>
+{% endblock %}

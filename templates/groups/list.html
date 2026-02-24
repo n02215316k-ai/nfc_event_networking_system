@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Groups{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>👥 Groups</h2>
+    {% for group in groups %}
+    <div class="card">
+        <h3><a href="/groups/{{ group.id }}">{{ group.name }}</a></h3>
+        <p>{{ group.description }}</p>
+        <small>{{ group.member_count }} members</small>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

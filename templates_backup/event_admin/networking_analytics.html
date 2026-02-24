@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Networking Analytics - Event Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2><i class="fas fa-project-diagram me-2"></i>Networking Analytics</h2>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Total Connections: {{ total_connections }}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="networkingChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Networking by Event</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Event</th>
+                                    <th>Total Connections</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for event in networking_by_event %}
+                                <tr>
+                                    <td>{{ event.title }}</td>
+                                    <td><span class="badge bg-primary">{{ event.total_connections }}</span></td>
+                                    <td>
+                                        <a href="{{ url_for('event_admin.event_reports', event_id=event.id) }}" 
+                                           class="btn btn-sm btn-info">View Details</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('networkingChart').getContext('2d');
+const data = {{ networking_by_event|tojson }};
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: data.map(d => d.title),
+        datasets: [{
+            label: 'Connections',
+            data: data.map(d => d.total_connections),
+            backgroundColor: '#0d6efd'
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from database import get_db_connection
+
+
+# Database helper function
+def execute_query(query, params=None, fetch=False, fetchone=False):
+    """Execute database query with proper connection handling"""
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query, params or ())
+        
+        if fetch:
+            result = cursor.fetchone() if fetchone else cursor.fetchall()
+        else:
+            conn.commit()
+            result = cursor.lastrowid if cursor.lastrowid else True
+        
+        cursor.close()
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"Database error: {e}")
+        if conn:
+            conn.close()
+        return None
+
+
+message_bp = Blueprint('message', __name__)
+
+@message_bp.route('/inbox')
+def inbox():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    messages = execute_query("""
+        SELECT m.*, u.full_name as sender_name, u.profile_image as sender_image
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.receiver_id = %s AND m.parent_message_id IS NULL
+        ORDER BY m.created_at DESC
+    """, (session['user_id'],), fetch=True) or []
+    
+    unread_count = execute_query(
+        "SELECT COUNT(*) as count FROM messages WHERE receiver_id = %s AND is_read = 0",
+        (session['user_id'],), fetch=True, fetchone=True
+    )['count']
+    
+    return render_template('messages/inbox.html', messages=messages, unread_count=unread_count)
+
+@message_bp.route('/compose', methods=['GET', 'POST'])
+def compose():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    if request.method == 'POST':
+        receiver_id = request.form.get('receiver_id')
+        subject = request.form.get('subject')
+        content = request.form.get('content')
+        
+        message_id = execute_query("""
+            INSERT INTO messages (sender_id, receiver_id, subject, content)
+            VALUES (%s, %s, %s, %s)
+        """, (session['user_id'], receiver_id, subject, content))
+        
+        if message_id:
+            flash('Message sent successfully!', 'success')
+            return redirect(url_for('message.inbox'))
+        
+        flash('Failed to send message', 'error')
+    
+    return render_template('messages/compose.html')

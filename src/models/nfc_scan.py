@@ -1,0 +1,1 @@
+# NFC Scan Model

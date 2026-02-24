@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Forums{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>💬 Forums</h2>
+    {% for forum in forums %}
+    <div class="card" style="margin-bottom: 1rem;">
+        <h3><a href="/forums/{{ forum.id }}">{{ forum.title }}</a></h3>
+        <p>{{ forum.description }}</p>
+        <small>{{ forum.post_count }} posts | Created by {{ forum.creator_name }}</small>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

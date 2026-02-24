@@ -1,0 +1,120 @@
+import os
+
+class Colors:
+    GREEN = '\033[92m'
+    CYAN = '\033[96m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+CONNECTIONS_TEMPLATE = """
+{% extends "base.html" %}
+{% block title %}My Connections{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-users me-2"></i>My Networking Connections</h2>
+                    <p class="text-muted">People you've connected with via NFC/QR scanning</p>
+                </div>
+                <a href="/nfc/scanner" class="btn btn-primary">
+                    <i class="fas fa-qrcode me-1"></i>Scan More
+                </a>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ connections|length }}</h3>
+                            <p class="mb-0">Total Connections</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{{ connections|selectattr('connection_method', 'equalto', 'nfc')|list|length }}</h3>
+                            <p class="mb-0">NFC Scans</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-info">{{ connections|selectattr('connection_method', 'equalto', 'qr')|list|length }}</h3>
+                            <p class="mb-0">QR Scans</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Connections List</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if connections %}
+                    <div class="list-group list-group-flush">
+                        {% for conn in connections %}
+                        <div class="list-group-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h6 class="mb-1">{{ conn.full_name }}</h6>
+                                    <p class="mb-1 text-muted">{{ conn.email }}</p>
+                                    {% if conn.job_title or conn.company %}
+                                    <p class="mb-0 small">
+                                        {% if conn.job_title %}{{ conn.job_title }}{% endif %}
+                                        {% if conn.company %} @ {{ conn.company }}{% endif %}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <span class="badge bg-{{ 'success' if conn.connection_method == 'nfc' else 'primary' }} mb-2">
+                                        {{ conn.connection_method.upper() }}
+                                    </span>
+                                    <br>
+                                    <small class="text-muted">{{ conn.connected_at|datetimeformat }}</small>
+                                    <br>
+                                    <a href="/profile/{{ conn.id }}" class="btn btn-sm btn-outline-primary mt-2">
+                                        <i class="fas fa-user me-1"></i>View Profile
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No connections yet. Start scanning at events!</p>
+                        <a href="/nfc/scanner" class="btn btn-primary">
+                            <i class="fas fa-qrcode me-1"></i>Start Networking
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
+print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*80}{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}PHASE 5: CREATING MY CONNECTIONS PAGE{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}{'='*80}{Colors.END}\n")
+
+filepath = 'templates/nfc/connections.html'
+os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(CONNECTIONS_TEMPLATE.strip())
+
+print(f"{Colors.GREEN}✓{Colors.END} Created: {filepath}")
+print(f"  - View all networking connections")
+print(f"  - Connection statistics")
+print(f"  - Link to user profiles")
+print(f"\n{Colors.GREEN}✅ Connections page created!{Colors.END}\n")

@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block title %}My Connections{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    
+    <!-- Page Header -->
+    <div class="text-center mb-4 text-white animate-in">
+        <h1 class="display-4 fw-bold">
+            <i class="fas fa-users me-3"></i>
+            My Connections
+        </h1>
+        <p class="lead">People you've connected with at events</p>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-lg text-center animate-in">
+                <div class="card-body">
+                    <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                    <h3 class="fw-bold">{{ connections|length }}</h3>
+                    <p class="text-muted mb-0">Total Connections</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-lg text-center animate-in">
+                <div class="card-body">
+                    <i class="fas fa-qrcode fa-3x text-success mb-3"></i>
+                    <h3 class="fw-bold">{{ connections|selectattr('connection_method', 'equalto', 'qr')|list|length }}</h3>
+                    <p class="text-muted mb-0">QR Scans</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-lg text-center animate-in">
+                <div class="card-body">
+                    <i class="fas fa-wifi fa-3x text-info mb-3"></i>
+                    <h3 class="fw-bold">{{ connections|selectattr('connection_method', 'equalto', 'nfc')|list|length }}</h3>
+                    <p class="text-muted mb-0">NFC Taps</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Search Bar -->
+    <div class="card shadow-lg mb-4 animate-in">
+        <div class="card-body">
+            <div class="input-group input-group-lg">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" class="form-control" id="searchConnections" 
+                       placeholder="Search connections by name, company, or job title...">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Connections List -->
+    <div class="card shadow-lg animate-in">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-address-book me-2"></i>
+                All Connections
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if connections %}
+                <div class="row g-3">
+                    {% for conn in connections %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="flex-shrink-0">
+                                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
+                                             style="width: 50px; height: 50px;">
+                                            <span class="fw-bold fs-4">{{ conn.full_name[0] }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="mb-0 fw-bold">{{ conn.full_name }}</h6>
+                                        <small class="text-muted">{{ conn.job_title or 'Event Attendee' }}</small>
+                                    </div>
+                                </div>
+                                
+                                {% if conn.company %}
+                                <p class="text-muted mb-2">
+                                    <i class="fas fa-building me-2"></i>
+                                    {{ conn.company }}
+                                </p>
+                                {% endif %}
+                                
+                                <p class="text-muted mb-2">
+                                    <i class="fas fa-envelope me-2"></i>
+                                    {{ conn.email }}
+                                </p>
+                                
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <span class="badge bg-{{ 'success' if conn.connection_method == 'nfc' else 'primary' }}">
+                                        <i class="fas fa-{{ 'wifi' if conn.connection_method == 'nfc' else 'qrcode' }} me-1"></i>
+                                        {{ conn.connection_method.upper() }}
+                                    </span>
+                                    <small class="text-muted">
+                                        {{ conn.connected_at.strftime('%b %d, %Y') if conn.connected_at else 'N/A' }}
+                                    </small>
+                                </div>
+                                
+                                <div class="d-grid gap-2 mt-3">
+                                    <a href="mailto:{{ conn.email }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-envelope me-1"></i> Email
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-user-friends fa-5x text-muted mb-4"></i>
+                    <h4>No Connections Yet</h4>
+                    <p class="text-muted">Start scanning QR codes to build your network!</p>
+                    <a href="/nfc/scanner" class="btn btn-primary">
+                        <i class="fas fa-qrcode me-2"></i>
+                        Start Scanning
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+</div>
+
+<script>
+// Search functionality
+document.getElementById('searchConnections').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const cards = document.querySelectorAll('.col-md-6.col-lg-4');
+    
+    cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

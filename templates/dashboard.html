@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Event Social Network{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    
+    <!-- Welcome Banner -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-lg animate-in" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                <div class="card-body text-white p-5">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h1 class="display-4 fw-bold mb-3">
+                                <i class="fas fa-hand-wave me-2"></i>
+                                Welcome back, {{ session.full_name }}!
+                            </h1>
+                            <p class="lead mb-0">
+                                <i class="fas fa-briefcase me-2"></i>
+                                {{ session.job_title or 'Event Attendee' }} 
+                                {% if session.company %}at {{ session.company }}{% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="bg-white bg-opacity-25 rounded-3 p-3">
+                                <h5 class="mb-2">Quick Actions</h5>
+                                <div class="d-grid gap-2">
+                                    <a href="/nfc/scanner" class="btn btn-light btn-sm">
+                                        <i class="fas fa-qrcode me-2"></i>Scan Now
+                                    </a>
+                                    <a href="/profile/my-nfc" class="btn btn-light btn-sm">
+                                        <i class="fas fa-id-card me-2"></i>My QR
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm animate-in">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-calendar-check fa-3x text-primary"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.registered_events or 0 }}</h3>
+                    <p class="text-muted mb-0">Registered Events</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card shadow-sm animate-in">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-users fa-3x text-success"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.connections or 0 }}</h3>
+                    <p class="text-muted mb-0">Connections</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card shadow-sm animate-in">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-qrcode fa-3x text-info"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.scans or 0 }}</h3>
+                    <p class="text-muted mb-0">Total Scans</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card shadow-sm animate-in">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-comments fa-3x text-warning"></i>
+                    </div>
+                    <h3 class="fw-bold">{{ stats.forum_posts or 0 }}</h3>
+                    <p class="text-muted mb-0">Forum Posts</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content Row -->
+    <div class="row g-4">
+        
+        <!-- Upcoming Events -->
+        <div class="col-lg-8">
+            <div class="card shadow-lg animate-in">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        Upcoming Events
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_events %}
+                        <div class="list-group list-group-flush">
+                            {% for event in upcoming_events %}
+                            <a href="/events/{{ event.id }}" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1 fw-bold">{{ event.title }}</h6>
+                                        <p class="mb-1 text-muted small">
+                                            <i class="fas fa-map-marker-alt me-1"></i>
+                                            {{ event.location }}
+                                        </p>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-primary">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            {{ event.event_date.strftime('%b %d') }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-calendar-times fa-3x mb-3"></i>
+                            <p>No upcoming events</p>
+                            <a href="/events" class="btn btn-primary">Browse Events</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="col-lg-4">
+            <div class="card shadow-lg animate-in">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>
+                        Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_activity %}
+                        <div class="timeline">
+                            {% for activity in recent_activity %}
+                            <div class="timeline-item mb-3">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0">
+                                        <i class="fas fa-{{ activity.icon }} text-primary"></i>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <p class="mb-0 small">{{ activity.description }}</p>
+                                        <small class="text-muted">{{ activity.time }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-history fa-2x mb-2"></i>
+                            <p class="mb-0 small">No recent activity</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Quick Links -->
+            <div class="card shadow-lg mt-4 animate-in">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-link me-2"></i>
+                        Quick Links
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/nfc/scanner" class="btn btn-outline-primary">
+                            <i class="fas fa-qrcode me-2"></i>Scanner
+                        </a>
+                        <a href="/events" class="btn btn-outline-primary">
+                            <i class="fas fa-calendar me-2"></i>Browse Events
+                        </a>
+                        <a href="/nfc/my-connections" class="btn btn-outline-primary">
+                            <i class="fas fa-users me-2"></i>My Connections
+                        </a>
+                        <a href="/forums" class="btn btn-outline-primary">
+                            <i class="fas fa-comments me-2"></i>Forums
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+{% endblock %}

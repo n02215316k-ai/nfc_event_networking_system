@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Live Attendance - {{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-broadcast-tower me-2"></i>Live Attendance: {{ event.title }}</h2>
+        <a href="{{ url_for('event_admin.event_details', event_id=event.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Event
+        </a>
+    </div>
+
+    <!-- Real-time Stats -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary">
+                <div class="card-body text-center">
+                    <h5>Total Registered</h5>
+                    <h1 id="total-registered">0</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success">
+                <div class="card-body text-center">
+                    <h5>Checked In</h5>
+                    <h1 id="total-checked-in">0</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-info">
+                <div class="card-body text-center">
+                    <h5>Currently Present</h5>
+                    <h1 id="currently-present">0</h1>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance List -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Attendance Log</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="attendance-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Check-in Time</th>
+                                    <th>Method</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-tbody">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let eventId = {{ event.id }};
+
+function updateAttendance() {
+    fetch(`/event-admin/event/${eventId}/attendance/data`)
+        .then(response => response.json())
+        .then(data => {
+            // Update stats
+            document.getElementById('total-registered').textContent = data.stats.total_registered || 0;
+            document.getElementById('total-checked-in').textContent = data.stats.total_checked_in || 0;
+            document.getElementById('currently-present').textContent = data.stats.currently_present || 0;
+            
+            // Update table
+            let tbody = document.getElementById('attendance-tbody');
+            tbody.innerHTML = '';
+            
+            data.attendance.forEach(record => {
+                let row = `
+                    <tr>
+                        <td>${record.full_name}</td>
+                        <td>${record.email}</td>
+                        <td>${record.check_in_time || '-'}</td>
+                        <td><span class="badge bg-primary">${record.check_in_method || '-'}</span></td>
+                        <td>
+                            ${record.check_out_time 
+                                ? '<span class="badge bg-secondary">Checked Out</span>' 
+                                : '<span class="badge bg-success">Present</span>'}
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+// Update every 5 seconds
+updateAttendance();
+setInterval(updateAttendance, 5000);
+</script>
+{% endblock %}

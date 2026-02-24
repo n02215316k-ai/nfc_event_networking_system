@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NFC Event & Social Network{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS - Blue & White Theme -->
+    <style>
+        :root {
+            /* Blue & White Color Scheme */
+            --primary-blue: #0066CC;
+            --secondary-blue: #3399FF;
+            --light-blue: #66B2FF;
+            --dark-blue: #004080;
+            --white: #FFFFFF;
+            --off-white: #F8F9FA;
+            --border-blue: #B3D9FF;
+            --text-dark: #212529;
+            --text-muted: #6c757d;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--off-white);
+            color: var(--text-dark);
+        }
+        
+        /* Navbar - Blue */
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+            box-shadow: 0 2px 10px rgba(0, 102, 204, 0.3);
+        }
+        
+        .navbar-brand, .nav-link {
+            color: var(--white) !important;
+            font-weight: 500;
+        }
+        
+        .nav-link:hover {
+            color: var(--light-blue) !important;
+        }
+        
+        .navbar .badge {
+            background-color: #ff4444;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 0.7rem;
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background-color: var(--primary-blue);
+            border-color: var(--primary-blue);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--dark-blue);
+            border-color: var(--dark-blue);
+        }
+        
+        .btn-outline-primary {
+            color: var(--primary-blue);
+            border-color: var(--primary-blue);
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--primary-blue);
+            border-color: var(--primary-blue);
+            color: var(--white);
+        }
+        
+        /* Cards */
+        .card {
+            border: 1px solid var(--border-blue);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+            background-color: var(--white);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+            color: var(--white);
+            border-bottom: none;
+            font-weight: 600;
+        }
+        
+        /* Links */
+        a {
+            color: var(--primary-blue);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            color: var(--dark-blue);
+            text-decoration: underline;
+        }
+        
+        /* Badges */
+        .badge-primary {
+            background-color: var(--primary-blue);
+        }
+        
+        .badge-info {
+            background-color: var(--secondary-blue);
+        }
+        
+        /* Alerts */
+        .alert-primary {
+            background-color: #e6f2ff;
+            border-color: var(--border-blue);
+            color: var(--dark-blue);
+        }
+        
+        /* Tables */
+        .table thead {
+            background-color: var(--primary-blue);
+            color: var(--white);
+        }
+        
+        .table-striped tbody tr:nth-of-type(odd) {
+            background-color: #f0f8ff;
+        }
+        
+        /* Forms */
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 0.25rem rgba(0, 102, 204, 0.25);
+        }
+        
+        /* Footer */
+        footer {
+            background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-blue) 100%);
+            color: var(--white);
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+        
+        footer a {
+            color: var(--light-blue);
+        }
+        
+        footer a:hover {
+            color: var(--white);
+        }
+        
+        /* Sidebar (for dashboard) */
+        .sidebar {
+            background-color: var(--white);
+            border-right: 2px solid var(--border-blue);
+            min-height: calc(100vh - 56px);
+        }
+        
+        .sidebar .nav-link {
+            color: var(--text-dark) !important;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid transparent;
+        }
+        
+        .sidebar .nav-link:hover {
+            background-color: #e6f2ff;
+            border-left-color: var(--primary-blue);
+        }
+        
+        .sidebar .nav-link.active {
+            background-color: #e6f2ff;
+            border-left-color: var(--primary-blue);
+            color: var(--primary-blue) !important;
+            font-weight: 600;
+        }
+        
+        /* Stats Cards */
+        .stat-card {
+            background: linear-gradient(135deg, var(--white) 0%, #f0f8ff 100%);
+            border-left: 4px solid var(--primary-blue);
+        }
+        
+        .stat-card h3 {
+            color: var(--primary-blue);
+        }
+        
+        /* Profile Picture */
+        .profile-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--white);
+        }
+        
+        .profile-img-lg {
+            width: 150px;
+            height: 150px;
+            border: 4px solid var(--primary-blue);
+        }
+        
+        /* Pagination */
+        .pagination .page-link {
+            color: var(--primary-blue);
+        }
+        
+        .pagination .page-item.active .page-link {
+            background-color: var(--primary-blue);
+            border-color: var(--primary-blue);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--off-white);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-blue);
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--dark-blue);
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-calendar-check me-2"></i>
+                <strong>NFC Events</strong>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if current_user %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('events.list_events') }}">
+                            <i class="fas fa-calendar-alt"></i> Events
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('forum.list_forums') }}">
+                            <i class="fas fa-comments"></i> Forums
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('search') }}">
+                            <i class="fas fa-search"></i> Search
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <ul class="navbar-nav">
+                    {% if current_user %}
+                    <li class="nav-item position-relative">
+                        <a class="nav-link" href="{{ url_for('messaging.inbox') }}">
+                            <i class="fas fa-envelope"></i>
+                            {% if unread_messages > 0 %}
+                            <span class="badge">{{ unread_messages }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li class="nav-item position-relative">
+                        <a class="nav-link" href="{{ url_for('notifications') }}">
+                            <i class="fas fa-bell"></i>
+                            {% if unread_notifications > 0 %}
+                            <span class="badge">{{ unread_notifications }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" 
+                           data-bs-toggle="dropdown">
+                            {% if current_user.profile_picture %}
+                            <img src="{{ url_for('static', filename=current_user.profile_picture) }}" 
+                                 class="profile-img" alt="Profile">
+                            {% else %}
+                            <i class="fas fa-user-circle"></i>
+                            {% endif %}
+                            {{ current_user.full_name }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('profile.view', user_id=current_user.id) }}">
+                                    <i class="fas fa-user"></i> My Profile
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('profile.edit') }}">
+                                    <i class="fas fa-edit"></i> Edit Profile
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('events.my_events') }}">
+                                    <i class="fas fa-calendar"></i> My Events
+                                </a>
+                            </li>
+                            {% if current_user.role == 'system_manager' %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('system_manager.dashboard') }}">
+                                    <i class="fas fa-cogs"></i> System Manager
+                                </a>
+                            </li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('auth.change_password') }}">
+                                    <i class="fas fa-key"></i> Change Password
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.signup') }}">
+                            <i class="fas fa-user-plus"></i> Sign Up
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Flash Messages -->
+    <div class="container mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>{{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+    
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Footer -->
+    <footer class="mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <h5><i class="fas fa-calendar-check me-2"></i>NFC Events</h5>
+                    <p class="text-white-50">Professional event management and networking platform.</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h6>Quick Links</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('events.list_events') }}">Events</a></li>
+                        <li><a href="{{ url_for('forum.list_forums') }}">Forums</a></li>
+                        <li><a href="{{ url_for('search') }}">Search</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h6>Contact</h6>
+                    <p class="text-white-50">
+                        <i class="fas fa-envelope me-2"></i> support@nfcevents.com<br>
+                        <i class="fas fa-phone me-2"></i> +263 123 456 789
+                    </p>
+                </div>
+            </div>
+            <hr class="bg-white">
+            <div class="text-center text-white-50">
+                <small>&copy; 2026 NFC Event & Social Network. All rights reserved.</small>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- jQuery (for AJAX) -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,122 @@
+# filepath: c:\Users\lenovo\Downloads\nfc\src\controllers\users.py
+from flask import Blueprint, render_template, redirect, url_for, session, flash, request, jsonify
+from database.db import db
+from werkzeug.utils import secure_filename
+import os
+
+user_bp = Blueprint('user', __name__, url_prefix='/users')
+
+ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@user_bp.route('/<int:user_id>')
+def view_profile(user_id):
+    """View user profile"""
+    user = db.execute_query(
+        "SELECT * FROM users WHERE id = %s",
+        (user_id,), fetch=True, fetchone=True
+    )
+    
+    if not user:
+        flash('User not found', 'error')
+        return redirect(url_for('index'))
+    
+    followers_count = db.execute_query(
+        "SELECT COUNT(*) as count FROM followers WHERE following_id = %s",
+        (user_id,), fetch=True, fetchone=True
+    )['count'] if db.execute_query("SELECT COUNT(*) as count FROM followers WHERE following_id = %s", (user_id,), fetch=True, fetchone=True) else 0
+    
+    following_count = db.execute_query(
+        "SELECT COUNT(*) as count FROM followers WHERE follower_id = %s",
+        (user_id,), fetch=True, fetchone=True
+    )['count'] if db.execute_query("SELECT COUNT(*) as count FROM followers WHERE follower_id = %s", (user_id,), fetch=True, fetchone=True) else 0
+    
+    is_following = False
+    if 'user_id' in session and session['user_id'] != user_id:
+        follow = db.execute_query(
+            "SELECT * FROM followers WHERE follower_id = %s AND following_id = %s",
+            (session['user_id'], user_id), fetch=True, fetchone=True
+        )
+        is_following = follow is not None
+    
+    documents = db.execute_query("""
+        SELECT * FROM documents 
+        WHERE user_id = %s AND status = 'verified'
+        ORDER BY submitted_at DESC
+    """, (user_id,), fetch=True) or []
+    
+    events = db.execute_query("""
+        SELECT * FROM events 
+        WHERE creator_id = %s AND status = 'published'
+        ORDER BY start_date DESC
+        LIMIT 5
+    """, (user_id,), fetch=True) or []
+    
+    return render_template('users/profile.html', 
+                         user=user, 
+                         followers_count=followers_count,
+                         following_count=following_count,
+                         is_following=is_following,
+                         documents=documents,
+                         events=events)
+
+@user_bp.route('/<int:user_id>/follow', methods=['POST'])
+def follow_user(user_id):
+    """Follow/Unfollow a user"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    if user_id == session['user_id']:
+        return jsonify({'success': False, 'error': 'Cannot follow yourself'})
+    
+    existing = db.execute_query(
+        "SELECT id FROM followers WHERE follower_id = %s AND following_id = %s",
+        (session['user_id'], user_id), fetch=True, fetchone=True
+    )
+    
+    if existing:
+        db.execute_query(
+            "DELETE FROM followers WHERE follower_id = %s AND following_id = %s",
+            (session['user_id'], user_id)
+        )
+        return jsonify({'success': True, 'action': 'unfollowed'})
+    else:
+        db.execute_query(
+            "INSERT INTO followers (follower_id, following_id) VALUES (%s, %s)",
+            (session['user_id'], user_id)
+        )
+        return jsonify({'success': True, 'action': 'followed'})
+
+@user_bp.route('/edit', methods=['GET', 'POST'])
+def edit_profile():
+    """Edit user profile"""
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    user = db.execute_query(
+        "SELECT * FROM users WHERE id = %s",
+        (session['user_id'],), fetch=True, fetchone=True
+    )
+    
+    if request.method == 'POST':
+        full_name = request.form.get('full_name')
+        biography = request.form.get('biography')
+        qualifications = request.form.get('qualifications')
+        current_employment = request.form.get('current_employment')
+        research_area = request.form.get('research_area')
+        
+        db.execute_query("""
+            UPDATE users 
+            SET full_name = %s, biography = %s, qualifications = %s,
+                current_employment = %s, research_area = %s
+            WHERE id = %s
+        """, (full_name, biography, qualifications, current_employment, research_area, session['user_id']))
+        
+        session['full_name'] = full_name
+        
+        flash('Profile updated successfully!', 'success')
+        return redirect(url_for('user.view_profile', user_id=session['user_id']))
+    
+    return render_template('users/edit_profile.html', user=user)

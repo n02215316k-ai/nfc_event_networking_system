@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}My NFC/QR Code{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            
+            <!-- Page Header -->
+            <div class="text-center mb-4 text-white animate-in">
+                <h1 class="display-4 fw-bold">
+                    <i class="fas fa-id-card me-3"></i>
+                    My NFC Badge
+                </h1>
+                <p class="lead">Share this QR code for instant networking</p>
+            </div>
+            
+            <!-- Main QR Card -->
+            <div class="card shadow-lg mb-4 animate-in">
+                <div class="card-body p-5 text-center">
+                    <h3 class="mb-4 fw-bold">{{ user.full_name }}</h3>
+                    
+                    {% if user.job_title %}
+                    <p class="text-muted mb-1">{{ user.job_title }}</p>
+                    {% endif %}
+                    {% if user.company %}
+                    <p class="text-muted mb-4">{{ user.company }}</p>
+                    {% endif %}
+                    
+                    <!-- QR Code -->
+                    {% if nfc_code %}
+                    <div class="mb-4">
+                        <div class="border rounded-3 p-4 d-inline-block" style="background: white;">
+                            <img src="{{ nfc_code }}" alt="QR Code" style="width: 300px; height: 300px;">
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Badge ID -->
+                    <div class="alert alert-info">
+                        <strong>Badge ID:</strong>
+                        <code class="fs-5">{{ user.nfc_badge_id }}</code>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="row g-3 mt-4">
+                        <div class="col-md-4">
+                            <button class="btn btn-primary w-100" onclick="downloadQR()">
+                                <i class="fas fa-download me-2"></i>
+                                Download QR
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-success w-100" onclick="shareQR()">
+                                <i class="fas fa-share-alt me-2"></i>
+                                Share
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-info w-100" onclick="printQR()">
+                                <i class="fas fa-print me-2"></i>
+                                Print
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Event QR Codes -->
+            {% if upcoming_events %}
+            <div class="card shadow-lg animate-in">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-check me-2"></i>
+                        Event Check-in QR Codes
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        {% for event in upcoming_events %}
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h6 class="fw-bold">{{ event.title }}</h6>
+                                    <small class="text-muted">{{ event.event_date.strftime('%B %d, %Y') }}</small>
+                                    {% if event.qr_code %}
+                                    <div class="mt-3">
+                                        <img src="{{ event.qr_code }}" alt="Event QR" style="width: 150px; height: 150px;">
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+        </div>
+    </div>
+</div>
+
+<script>
+function downloadQR() {
+    const link = document.createElement('a');
+    link.download = 'my-qr-code.png';
+    link.href = '{{ nfc_code }}';
+    link.click();
+}
+
+function shareQR() {
+    if (navigator.share) {
+        navigator.share({
+            title: 'My Event Badge',
+            text: 'Connect with me at events!',
+            url: window.location.href
+        });
+    } else {
+        alert('Share functionality not supported on this device');
+    }
+}
+
+function printQR() {
+    window.print();
+}
+</script>
+{% endblock %}

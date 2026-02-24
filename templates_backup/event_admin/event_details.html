@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }} - Event Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-calendar-alt me-2"></i>{{ event.title }}</h2>
+        <div>
+            <a href="{{ url_for('event_admin.live_attendance', event_id=event.id) }}" class="btn btn-success">
+                <i class="fas fa-broadcast-tower me-1"></i>Live Attendance
+            </a>
+            <a href="{{ url_for('event_admin.generate_qr_codes', event_id=event.id) }}" class="btn btn-primary">
+                <i class="fas fa-qrcode me-1"></i>QR Codes
+            </a>
+            <a href="{{ url_for('event_admin.event_reports', event_id=event.id) }}" class="btn btn-info">
+                <i class="fas fa-chart-bar me-1"></i>Reports
+            </a>
+        </div>
+    </div>
+
+    <!-- Event Info Card -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Event Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Date:</strong> {{ event.start_date|datetime_format('%B %d, %Y') }}</p>
+                            <p><strong>Time:</strong> {{ event.start_date|datetime_format('%I:%M %p') }} - {{ event.end_date|datetime_format('%I:%M %p') }}</p>
+                            <p><strong>Location:</strong> {{ event.location }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Category:</strong> <span class="badge bg-primary">{{ event.category }}</span></p>
+                            <p><strong>Status:</strong> <span class="badge bg-success">{{ event.status }}</span></p>
+                            <p><strong>Max Attendees:</strong> {{ event.max_attendees or 'Unlimited' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <p><strong>Description:</strong></p>
+                    <p>{{ event.description }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Statistics -->
+        <div class="col-md-4">
+            <div class="card bg-primary text-white mb-3">
+                <div class="card-body text-center">
+                    <h6>Total Registered</h6>
+                    <h2>{{ attendance_stats.total_registered or 0 }}</h2>
+                </div>
+            </div>
+            <div class="card bg-success text-white mb-3">
+                <div class="card-body text-center">
+                    <h6>Checked In</h6>
+                    <h2>{{ attendance_stats.total_checked_in or 0 }}</h2>
+                </div>
+            </div>
+            <div class="card bg-info text-white mb-3">
+                <div class="card-body text-center">
+                    <h6>Currently Present</h6>
+                    <h2>{{ attendance_stats.currently_present or 0 }}</h2>
+                </div>
+            </div>
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h6>Checked Out</h6>
+                    <h2>{{ attendance_stats.total_checked_out or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Check-in Methods -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Check-in Methods Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="checkinMethodsChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registrations Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Registered Attendees</h5>
+                    <div>
+                        <input type="text" class="form-control" id="search-attendees" placeholder="Search attendees...">
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="attendees-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Registration Date</th>
+                                    <th>Check-in Time</th>
+                                    <th>Check-out Time</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reg in registrations %}
+                                <tr>
+                                    <td>{{ reg.full_name }}</td>
+                                    <td>{{ reg.email }}</td>
+                                    <td>{{ reg.phone or '-' }}</td>
+                                    <td>{{ reg.registration_date|datetime_format('%b %d, %Y') }}</td>
+                                    <td>
+                                        {% if reg.check_in_time %}
+                                            {{ reg.check_in_time|datetime_format('%I:%M %p') }}
+                                            <small class="text-muted">({{ reg.check_in_method }})</small>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if reg.check_out_time %}
+                                            {{ reg.check_out_time|datetime_format('%I:%M %p') }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if reg.current_status == 'present' %}
+                                            <span class="badge bg-success">Present</span>
+                                        {% elif reg.current_status == 'checked_out' %}
+                                            <span class="badge bg-secondary">Checked Out</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Registered</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not reg.check_in_time %}
+                                        <button class="btn btn-sm btn-primary manual-checkin" data-user-id="{{ reg.user_id }}">
+                                            Check In
+                                        </button>
+                                        {% endif %}
+                                        <a href="/profile/{{ reg.user_id }}" class="btn btn-sm btn-info">View</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Check-in methods chart
+const ctx = document.getElementById('checkinMethodsChart').getContext('2d');
+const methods = {{ checkin_methods|tojson }};
+
+const labels = methods.map(m => m.check_in_method.toUpperCase());
+const data = methods.map(m => m.count);
+
+new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: labels,
+        datasets: [{
+            data: data,
+            backgroundColor: ['#0d6efd', '#198754', '#ffc107']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Manual check-in
+document.querySelectorAll('.manual-checkin').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.getAttribute('data-user-id');
+        if (confirm('Manually check in this attendee?')) {
+            fetch('/event-admin/event/{{ event.id }}/manual-checkin', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_id: userId})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Check-in successful!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+        }
+    });
+});
+
+// Search attendees
+document.getElementById('search-attendees').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#attendees-table tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

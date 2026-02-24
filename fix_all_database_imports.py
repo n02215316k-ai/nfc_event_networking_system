@@ -1,0 +1,92 @@
+import os
+import re
+from pathlib import Path
+
+class Colors:
+    GREEN = '\033[92m'
+    CYAN = '\033[96m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*70}{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}FIXING ALL DATABASE IMPORTS IN PROJECT{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}{'='*70}{Colors.END}\n")
+
+# Find all Python files
+python_files = []
+for root, dirs, files in os.walk('.'):
+    # Skip venv, __pycache__, etc.
+    if any(skip in root for skip in ['venv', '__pycache__', '.git', 'node_modules']):
+        continue
+    
+    for file in files:
+        if file.endswith('.py'):
+            file_path = os.path.join(root, file)
+            python_files.append(file_path)
+
+print(f"{Colors.CYAN}Found {len(python_files)} Python files{Colors.END}\n")
+
+# Patterns to find and replace
+bad_imports = [
+    r'from database\.db import db',
+    r'from database\.db import get_db_connection',
+    r'from database import get_db_connection',
+    r'import database\.db',
+]
+
+correct_import = 'from database import get_db_connection'
+
+files_fixed = []
+
+for file_path in python_files:
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        original_content = content
+        modified = False
+        
+        # Replace all bad import patterns
+        for pattern in bad_imports:
+            if re.search(pattern, content):
+                print(f"{Colors.YELLOW}Fixing: {file_path}{Colors.END}")
+                content = re.sub(pattern, correct_import, content)
+                modified = True
+        
+        # Also replace 'db.' references with 'get_db_connection()'
+        # But only if we found database imports
+        if modified:
+            # Backup
+            backup_path = file_path + '.backup'
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(original_content)
+            
+            # Write fixed content
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            files_fixed.append(file_path)
+            print(f"  {Colors.GREEN}✓{Colors.END} Fixed and backed up\n")
+    
+    except Exception as e:
+        print(f"{Colors.RED}Error processing {file_path}: {e}{Colors.END}")
+
+print(f"\n{Colors.BOLD}{Colors.GREEN}{'='*70}{Colors.END}")
+print(f"{Colors.BOLD}{Colors.GREEN}✅ IMPORT FIX COMPLETE{Colors.END}")
+print(f"{Colors.BOLD}{Colors.GREEN}{'='*70}{Colors.END}\n")
+
+print(f"{Colors.CYAN}Files fixed: {len(files_fixed)}{Colors.END}\n")
+
+if files_fixed:
+    print(f"{Colors.BOLD}Fixed files:{Colors.END}")
+    for file in files_fixed:
+        print(f"  {Colors.GREEN}✓{Colors.END} {file}")
+    print()
+
+print(f"{Colors.YELLOW}Backups created with .backup extension{Colors.END}\n")
+
+print(f"{Colors.BOLD}Next steps:{Colors.END}")
+print(f"  1. {Colors.CYAN}python database.py{Colors.END} - Test database connection")
+print(f"  2. {Colors.CYAN}python app.py{Colors.END} - Start Flask app\n")

@@ -1,0 +1,190 @@
+import os
+
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    CYAN = '\033[96m'
+    END = '\033[0m'
+
+ENHANCED_MY_NFC = """
+{% extends "base.html" %}
+{% block title %}My NFC/QR Code{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h4 class="mb-0 text-center">
+                        <i class="fas fa-id-card me-2"></i>My Digital Pass
+                    </h4>
+                </div>
+                <div class="card-body text-center p-5">
+                    <!-- User Info -->
+                    <h5 class="mb-1">{{ current_user.full_name if current_user else session.get('full_name', 'User') }}</h5>
+                    <p class="text-muted mb-4">{{ current_user.email if current_user else session.get('email', '') }}</p>
+                    
+                    <!-- QR Code Display -->
+                    <div class="mb-4 p-4 bg-light rounded">
+                        <div id="qr-code-container" class="mb-3">
+                            <!-- QR Code will be generated here -->
+                        </div>
+                        <p class="text-muted small mb-0">Scan this code to check-in or connect</p>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2 col-md-8 mx-auto">
+                        <button class="btn btn-primary btn-lg" onclick="downloadQR()">
+                            <i class="fas fa-download me-2"></i>Download QR Code
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="shareQR()">
+                            <i class="fas fa-share-alt me-2"></i>Share QR Code
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="printQR()">
+                            <i class="fas fa-print me-2"></i>Print QR Code
+                        </button>
+                    </div>
+
+                    <!-- Usage Instructions -->
+                    <div class="alert alert-info mt-4 text-start">
+                        <h6><i class="fas fa-info-circle me-2"></i>How to Use:</h6>
+                        <ul class="mb-0">
+                            <li>Show this QR code at event check-in points</li>
+                            <li>Other attendees can scan to connect with you</li>
+                            <li>Download and save for offline use</li>
+                            <li>Print and attach to your badge</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Registered Events -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calendar-check me-2"></i>My Registered Events</h5>
+                </div>
+                <div class="card-body">
+                    <div id="my-events">
+                        <p class="text-center text-muted">Loading events...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+// Generate QR Code
+const userId = '{{ session.get("user_id") }}';
+const userEmail = '{{ session.get("email", "") }}';
+const qrData = `user:${userId}:${userEmail}`;
+
+const qrCode = new QRCode(document.getElementById('qr-code-container'), {
+    text: qrData,
+    width: 256,
+    height: 256,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
+});
+
+// Download QR Code
+function downloadQR() {
+    const canvas = document.querySelector('#qr-code-container canvas');
+    const url = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = 'my-qr-code.png';
+    link.href = url;
+    link.click();
+}
+
+// Share QR Code
+function shareQR() {
+    const canvas = document.querySelector('#qr-code-container canvas');
+    canvas.toBlob(blob => {
+        if (navigator.share) {
+            const file = new File([blob], 'my-qr-code.png', { type: 'image/png' });
+            navigator.share({
+                title: 'My Event QR Code',
+                text: 'Scan this to connect with me!',
+                files: [file]
+            });
+        } else {
+            alert('Sharing not supported on this browser. Please download instead.');
+        }
+    });
+}
+
+// Print QR Code
+function printQR() {
+    window.print();
+}
+
+// Load registered events
+fetch('/api/my-events')
+    .then(response => response.json())
+    .then(data => {
+        const container = document.getElementById('my-events');
+        if (data.events && data.events.length > 0) {
+            container.innerHTML = '<div class="list-group">' +
+                data.events.map(event => `
+                    <a href="/events/${event.id}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">${event.title}</h6>
+                                <small class="text-muted">${event.start_date}</small>
+                            </div>
+                            <span class="badge bg-primary">Registered</span>
+                        </div>
+                    </a>
+                `).join('') +
+                '</div>';
+        } else {
+            container.innerHTML = '<p class="text-center text-muted">No registered events</p>';
+        }
+    })
+    .catch(error => {
+        document.getElementById('my-events').innerHTML = 
+            '<p class="text-center text-danger">Error loading events</p>';
+    });
+</script>
+
+<style>
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #qr-code-container, #qr-code-container * {
+        visibility: visible;
+    }
+    #qr-code-container {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+    }
+}
+</style>
+{% endblock %}
+"""
+
+print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*80}{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}PHASE 3: ENHANCING QR CODE GENERATION{Colors.END}")
+print(f"{Colors.BOLD}{Colors.CYAN}{'='*80}{Colors.END}\n")
+
+filepath = 'templates/profile/my_nfc.html'
+os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+if os.path.exists(filepath):
+    import shutil
+    backup = filepath + '.backup_' + str(int(__import__('time').time()))
+    shutil.copy2(filepath, backup)
+    print(f"{Colors.GREEN}✓{Colors.END} Backup: {backup}")
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(ENHANCED_MY_NFC.strip())
+
+print(f"{Colors.GREEN}✓{Colors.END} Enhanced: {filepath}")
+print(f"\n{Colors.GREEN}✅ Enhanced QR code generation page!{Colors.END}\n")

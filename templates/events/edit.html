@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Event{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <div class="card shadow-lg animate-in">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-edit"></i> Edit Event
+                    </h3>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="row">
+                            <!-- Event Name -->
+                            <div class="col-md-8 mb-3">
+                                <label for="name" class="form-label">Event Name *</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="name" 
+                                       name="name" 
+                                       value="{{ event.name }}" 
+                                       required>
+                            </div>
+
+                            <!-- Category -->
+                            <div class="col-md-4 mb-3">
+                                <label for="category" class="form-label">Category *</label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="Conference" {% if event.category == 'Conference' %}selected{% endif %}>Conference</option>
+                                    <option value="Workshop" {% if event.category == 'Workshop' %}selected{% endif %}>Workshop</option>
+                                    <option value="Seminar" {% if event.category == 'Seminar' %}selected{% endif %}>Seminar</option>
+                                    <option value="Networking" {% if event.category == 'Networking' %}selected{% endif %}>Networking</option>
+                                    <option value="Social" {% if event.category == 'Social' %}selected{% endif %}>Social</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description *</label>
+                            <textarea class="form-control" 
+                                      id="description" 
+                                      name="description" 
+                                      rows="4" 
+                                      required>{{ event.description }}</textarea>
+                        </div>
+
+                        <div class="row">
+                            <!-- Date -->
+                            <div class="col-md-6 mb-3">
+                                <label for="date" class="form-label">Event Date *</label>
+                                <input type="datetime-local" 
+                                       class="form-control" 
+                                       id="date" 
+                                       name="date" 
+                                       value="{{ event.date.strftime('%Y-%m-%dT%H:%M') if event.date else '' }}" 
+                                       required>
+                            </div>
+
+                            <!-- Location -->
+                            <div class="col-md-6 mb-3">
+                                <label for="location" class="form-label">Location *</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="location" 
+                                       name="location" 
+                                       value="{{ event.location }}" 
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Max Attendees -->
+                            <div class="col-md-6 mb-3">
+                                <label for="max_attendees" class="form-label">Max Attendees</label>
+                                <input type="number" 
+                                       class="form-control" 
+                                       id="max_attendees" 
+                                       name="max_attendees" 
+                                       value="{{ event.max_attendees or '' }}">
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-6 mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <select class="form-select" id="status" name="status">
+                                    <option value="pending" {% if event.status == 'pending' %}selected{% endif %}>Pending</option>
+                                    <option value="approved" {% if event.status == 'approved' %}selected{% endif %}>Approved</option>
+                                    <option value="cancelled" {% if event.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> Update Event
+                            </button>
+                            <a href="{{ url_for('events.detail', event_id=event.id) }}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="button" 
+                                    class="btn btn-danger btn-lg ms-auto" 
+                                    onclick="if(confirm('Delete this event?')) document.getElementById('deleteForm').submit();">
+                                <i class="fas fa-trash"></i> Delete Event
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Hidden delete form -->
+                    <form id="deleteForm" 
+                          method="POST" 
+                          action="{{ url_for('events.delete_event', event_id=event.id) }}" 
+                          style="display:none;">
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

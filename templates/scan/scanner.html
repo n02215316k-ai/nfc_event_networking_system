@@ -1,0 +1,616 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    #reader {
+        width: 100%;
+        max-width: 500px;
+        margin: 1rem auto;
+        border: 2px solid var(--primary-blue);
+        border-radius: 8px;
+    }
+    
+    .scanner-container {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    .scan-result {
+        padding: 1rem;
+        margin-top: 1rem;
+        border-radius: 4px;
+        display: none;
+    }
+    
+    .scan-result.success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        display: block;
+        animation: slideIn 0.3s ease-out;
+    }
+    
+    .scan-result.error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        display: block;
+        animation: shake 0.5s;
+    }
+    
+    .scan-result.info {
+        background: #d1ecf1;
+        border: 1px solid #bee5eb;
+        color: #0c5460;
+        display: block;
+    }
+    
+    @keyframes slideIn {
+        from { transform: translateY(-20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-10px); }
+        75% { transform: translateX(10px); }
+    }
+    
+    .nfc-scanner {
+        background: linear-gradient(135deg, #0066cc, #0052a3);
+        color: white;
+        padding: 3rem 2rem;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+    
+    .nfc-icon {
+        font-size: 5rem;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+    }
+    
+    .nfc-status {
+        font-size: 1.2rem;
+        margin-top: 1rem;
+        font-weight: 500;
+    }
+    
+    .nfc-button {
+        font-size: 1.3rem;
+        padding: 1.5rem 3rem;
+        margin-top: 1.5rem;
+        background: white;
+        color: var(--primary-blue);
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: all 0.3s;
+    }
+    
+    .nfc-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+    
+    .nfc-button:active {
+        transform: translateY(0);
+    }
+    
+    .nfc-button.scanning {
+        background: #28a745;
+        color: white;
+        animation: pulse 1.5s infinite;
+    }
+    
+    .scanner-mode-toggle {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+    
+    .scanner-mode-toggle button {
+        flex: 1;
+        padding: 1rem;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 500;
+    }
+    
+    .scanner-mode-toggle button.active {
+        background: var(--primary-blue);
+        color: white;
+        box-shadow: 0 2px 8px rgba(0,102,204,0.3);
+    }
+    
+    .backup-scanner {
+        background: var(--light-blue);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+    
+    .device-info {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scanner-container">
+    <div class="card">
+        <h2 style="text-align: center;">📱 NFC/QR Scanner</h2>
+        
+        <!-- Device Compatibility Info -->
+        <div id="deviceInfo" class="device-info" style="display: none;"></div>
+        
+        <!-- Scanner Mode Toggle -->
+        <div class="scanner-mode-toggle">
+            <button class="active" id="nfcBtn" onclick="switchMode('nfc')">
+                📡 NFC Scanner
+            </button>
+            <button id="qrBtn" onclick="switchMode('qr')">
+                📷 QR Backup
+            </button>
+        </div>
+        
+        <!-- Event Selection (Always Visible) -->
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label for="event_id" style="font-weight: 600; font-size: 1.1rem;">
+                🎫 Select Event for Check-in
+            </label>
+            <select class="form-control" id="event_id" style="font-size: 1rem; padding: 0.75rem;">
+                <option value="">Choose an event...</option>
+                {% if events %}
+                    {% for event in events %}
+                    <option value="{{ event.id }}">
+                        {{ event.title }} - {{ event.start_date|datetime_format('%b %d, %Y') }}
+                        {% if event.location %} @ {{ event.location }}{% endif %}
+                    </option>
+                    {% endfor %}
+                {% else %}
+                    <option disabled>No upcoming events available</option>
+                {% endif %}
+            </select>
+        </div>
+        
+        <!-- NFC Scanner (Primary) -->
+        <div id="nfcScanner" class="nfc-scanner">
+            <div class="nfc-icon" id="nfcIcon">📱</div>
+            <div class="nfc-status" id="nfcStatus">Ready to scan NFC badges</div>
+            <button class="nfc-button" id="nfcButton" onclick="startNFCScan()">
+                <span id="nfcButtonText">🔵 Tap to Start NFC Scan</span>
+            </button>
+            <p style="margin-top: 1rem; opacity: 0.9; font-size: 0.9rem;">
+                Tap your NFC-enabled phone against the badge
+            </p>
+        </div>
+        
+        <!-- QR Code Scanner (Backup) -->
+        <div id="qrScanner" style="display: none;">
+            <div class="backup-scanner">
+                <p style="text-align: center; margin-bottom: 1rem; font-weight: 500;">
+                    📷 Camera QR Code Scanner (Backup Method)
+                </p>
+                <div id="reader"></div>
+                <button onclick="stopCamera()" class="btn btn-danger" style="width: 100%; margin-top: 1rem;">
+                    ⏹️ Stop Camera
+                </button>
+            </div>
+        </div>
+        
+        <!-- Scan Result -->
+        <div id="scanResult" class="scan-result"></div>
+        
+        <!-- Recent Scans -->
+        <div id="recentScans" style="margin-top: 2rem; display: none;">
+            <h3>📋 Recent Scans</h3>
+            <table style="width: 100%; margin-top: 1rem;">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="scanHistory"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Instructions Card -->
+    <div class="card" style="background: var(--light-blue);">
+        <h3>📖 How to Use NFC Scanner</h3>
+        <ol style="line-height: 2;">
+            <li>✅ <strong>Select an event</strong> from the dropdown above</li>
+            <li>📱 <strong>Click "Tap to Start NFC Scan"</strong> button</li>
+            <li>🔵 <strong>Hold your phone near the NFC badge</strong> (within 5cm)</li>
+            <li>✨ <strong>Automatic processing</strong> - badge data read instantly</li>
+            <li>🔄 <strong>Repeat</strong> for next attendee</li>
+        </ol>
+        
+        <div style="background: white; padding: 1rem; border-radius: 6px; margin-top: 1rem;">
+            <h4 style="margin-bottom: 0.5rem;">📱 NFC Requirements:</h4>
+            <ul style="line-height: 1.8;">
+                <li>✅ Android phone with NFC (Chrome browser)</li>
+                <li>✅ NFC enabled in phone settings</li>
+                <li>✅ HTTPS connection (required for Web NFC)</li>
+                <li>❌ iOS/iPhone - use QR backup method</li>
+            </ul>
+        </div>
+        
+        <div style="background: #fff3cd; padding: 1rem; border-radius: 6px; margin-top: 1rem;">
+            <h4 style="margin-bottom: 0.5rem;">📷 QR Backup Method:</h4>
+            <p>If NFC doesn't work, switch to "QR Backup" tab and scan the QR code on the badge</p>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Scanner Library -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+let html5QrCode = null;
+let scanHistory = [];
+let nfcScanning = false;
+
+// Check NFC support on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkNFCSupport();
+});
+
+// Check if NFC is supported
+function checkNFCSupport() {
+    const infoDiv = document.getElementById('deviceInfo');
+    
+    if ('NDEFReader' in window) {
+        infoDiv.innerHTML = '✅ <strong>NFC Supported!</strong> Your device supports Web NFC API.';
+        infoDiv.style.background = '#d4edda';
+        infoDiv.style.borderColor = '#c3e6cb';
+        infoDiv.style.color = '#155724';
+        infoDiv.style.display = 'block';
+    } else {
+        infoDiv.innerHTML = '⚠️ <strong>NFC Not Available</strong> - Use QR Backup method. Web NFC requires Android Chrome with HTTPS.';
+        infoDiv.style.display = 'block';
+        
+        // Auto-switch to QR mode
+        setTimeout(() => {
+            switchMode('qr');
+        }, 2000);
+    }
+}
+
+// Switch between NFC and QR mode
+function switchMode(mode) {
+    const nfcScanner = document.getElementById('nfcScanner');
+    const qrScanner = document.getElementById('qrScanner');
+    const nfcBtn = document.getElementById('nfcBtn');
+    const qrBtn = document.getElementById('qrBtn');
+    
+    if (mode === 'nfc') {
+        nfcScanner.style.display = 'block';
+        qrScanner.style.display = 'none';
+        nfcBtn.classList.add('active');
+        qrBtn.classList.remove('active');
+        stopCamera();
+        stopNFCScan();
+    } else {
+        nfcScanner.style.display = 'none';
+        qrScanner.style.display = 'block';
+        nfcBtn.classList.remove('active');
+        qrBtn.classList.add('active');
+        stopNFCScan();
+        startCamera();
+    }
+}
+
+// Start NFC Scan
+async function startNFCScan() {
+    const eventId = document.getElementById('event_id').value;
+    
+    if (!eventId) {
+        showResult('error', '⚠️ Please select an event first!');
+        return;
+    }
+    
+    if (!('NDEFReader' in window)) {
+        showResult('error', '❌ NFC not supported on this device. Please use QR backup method.');
+        return;
+    }
+    
+    try {
+        const nfcReader = new NDEFReader();
+        
+        // Request permission and start scanning
+        await nfcReader.scan();
+        
+        nfcScanning = true;
+        updateNFCUI('scanning');
+        showResult('info', '📡 NFC Scanner Active - Hold phone near badge...');
+        
+        // Listen for NFC tags
+        nfcReader.addEventListener('reading', ({ message, serialNumber }) => {
+            console.log('NFC Tag detected!', message);
+            
+            // Extract badge ID from NFC tag
+            let badgeId = null;
+            
+            // Try to read from NDEF records
+            for (const record of message.records) {
+                console.log('Record type:', record.recordType);
+                console.log('Record data:', record.data);
+                
+                if (record.recordType === 'text') {
+                    const textDecoder = new TextDecoder();
+                    badgeId = textDecoder.decode(record.data);
+                    break;
+                } else if (record.recordType === 'url') {
+                    const textDecoder = new TextDecoder();
+                    badgeId = textDecoder.decode(record.data);
+                    break;
+                }
+            }
+            
+            // Fallback to serial number if no data found
+            if (!badgeId && serialNumber) {
+                badgeId = 'NFC-' + serialNumber.replace(/:/g, '');
+            }
+            
+            if (badgeId) {
+                console.log('Badge ID extracted:', badgeId);
+                processBadgeScan(badgeId);
+            } else {
+                showResult('error', '❌ Could not read badge data. Please try again.');
+                setTimeout(() => {
+                    updateNFCUI('scanning');
+                }, 2000);
+            }
+        });
+        
+        nfcReader.addEventListener('readingerror', () => {
+            showResult('error', '❌ NFC read error. Please try again.');
+            updateNFCUI('ready');
+        });
+        
+    } catch (error) {
+        console.error('NFC Error:', error);
+        
+        if (error.name === 'NotAllowedError') {
+            showResult('error', '❌ NFC permission denied. Please allow NFC access.');
+        } else if (error.name === 'NotSupportedError') {
+            showResult('error', '❌ NFC not supported on this device.');
+        } else {
+            showResult('error', '❌ NFC Error: ' + error.message);
+        }
+        
+        updateNFCUI('ready');
+    }
+}
+
+// Stop NFC Scan
+function stopNFCScan() {
+    if (nfcScanning) {
+        nfcScanning = false;
+        updateNFCUI('ready');
+    }
+}
+
+// Update NFC UI state
+function updateNFCUI(state) {
+    const icon = document.getElementById('nfcIcon');
+    const status = document.getElementById('nfcStatus');
+    const button = document.getElementById('nfcButton');
+    const buttonText = document.getElementById('nfcButtonText');
+    
+    if (state === 'scanning') {
+        icon.textContent = '📡';
+        status.textContent = 'Scanning... Hold phone near badge';
+        button.classList.add('scanning');
+        buttonText.textContent = '🟢 Scanning Active - Tap to Stop';
+        button.onclick = stopNFCScan;
+    } else {
+        icon.textContent = '📱';
+        status.textContent = 'Ready to scan NFC badges';
+        button.classList.remove('scanning');
+        buttonText.textContent = '🔵 Tap to Start NFC Scan';
+        button.onclick = startNFCScan;
+    }
+}
+
+// Process badge scan (common for NFC and QR)
+function processBadgeScan(badgeId) {
+    const eventId = document.getElementById('event_id').value;
+    
+    if (!eventId) {
+        showResult('error', '⚠️ Please select an event first!');
+        return;
+    }
+    
+    showResult('info', '⏳ Processing: ' + badgeId + '...');
+    updateNFCUI('ready'); // Reset UI
+    
+    const formData = new FormData();
+    formData.append('badge_id', badgeId);
+    formData.append('scan_type', 'event');
+    formData.append('event_id', eventId);
+    
+    fetch('/attendance/scan', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showResult('success', '✅ ' + data.message);
+            
+            addToHistory({
+                user: data.user_name || 'User',
+                time: new Date().toLocaleTimeString(),
+                status: data.status || 'Success'
+            });
+            
+            playSound('success');
+            vibrate([200, 100, 200]); // Success vibration pattern
+            
+            // Auto-restart NFC scanning after 2 seconds
+            if (nfcScanning) {
+                setTimeout(() => {
+                    updateNFCUI('scanning');
+                    showResult('info', '📡 Ready for next scan...');
+                }, 2000);
+            }
+        } else {
+            showResult('error', '❌ ' + (data.error || 'Scan failed'));
+            playSound('error');
+            vibrate([500]); // Error vibration
+            
+            // Auto-restart scanning
+            if (nfcScanning) {
+                setTimeout(() => {
+                    updateNFCUI('scanning');
+                }, 3000);
+            }
+        }
+    })
+    .catch(error => {
+        showResult('error', '❌ Network error: ' + error.message);
+        playSound('error');
+        vibrate([500]);
+    });
+}
+
+// QR Camera Scanner
+function startCamera() {
+    if (html5QrCode) {
+        return;
+    }
+    
+    html5QrCode = new Html5Qrcode("reader");
+    
+    Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+            const cameraId = cameras[0].id;
+            
+            html5QrCode.start(
+                cameraId,
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                (decodedText) => {
+                    processBadgeScan(decodedText);
+                    html5QrCode.pause(true);
+                    setTimeout(() => {
+                        if (html5QrCode) {
+                            html5QrCode.resume();
+                        }
+                    }, 2000);
+                },
+                () => { /* Ignore errors */ }
+            ).catch(err => {
+                showResult('error', 'Camera error: ' + err);
+            });
+        } else {
+            showResult('error', 'No cameras found');
+        }
+    }).catch(err => {
+        showResult('error', 'Camera access error: ' + err);
+    });
+}
+
+function stopCamera() {
+    if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+            html5QrCode = null;
+        }).catch(() => {
+            html5QrCode = null;
+        });
+    }
+}
+
+// Show result
+function showResult(type, message) {
+    const resultDiv = document.getElementById('scanResult');
+    resultDiv.className = 'scan-result ' + type;
+    resultDiv.innerHTML = '<strong>' + message + '</strong>';
+    
+    if (type === 'success') {
+        setTimeout(() => {
+            resultDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Add to history
+function addToHistory(scan) {
+    scanHistory.unshift(scan);
+    if (scanHistory.length > 10) scanHistory.pop();
+    
+    const historyDiv = document.getElementById('recentScans');
+    const tbody = document.getElementById('scanHistory');
+    
+    historyDiv.style.display = 'block';
+    tbody.innerHTML = scanHistory.map(s => `
+        <tr>
+            <td>${s.user}</td>
+            <td>${s.time}</td>
+            <td><strong>${s.status}</strong></td>
+        </tr>
+    `).join('');
+}
+
+// Play sound
+function playSound(type) {
+    try {
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = context.createOscillator();
+        const gainNode = context.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(context.destination);
+        
+        oscillator.frequency.value = type === 'success' ? 800 : 400;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.5);
+        
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.5);
+    } catch(e) {
+        console.log('Audio not supported');
+    }
+}
+
+// Vibrate
+function vibrate(pattern) {
+    if ('vibrate' in navigator) {
+        navigator.vibrate(pattern);
+    }
+}
+
+// Cleanup
+window.addEventListener('beforeunload', function() {
+    stopCamera();
+    stopNFCScan();
+});
+</script>
+{% endblock %}

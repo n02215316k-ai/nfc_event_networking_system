@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Events{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- NFC Quick Access Widget -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="mb-2"><i class="fas fa-qrcode text-primary me-2"></i>NFC Quick Access</h5>
+                            <p class="mb-0 text-muted">Check-in to events or network with attendees using NFC/QR technology</p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="/nfc/scanner" class="btn btn-primary me-2">
+                                <i class="fas fa-camera me-1"></i>Open Scanner
+                            </a>
+                            <a href="/profile/my-nfc" class="btn btn-outline-primary">
+                                <i class="fas fa-id-card me-1"></i>My QR Code
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-calendar-alt me-2"></i>Events</h2>
+        {% if session.get('role') in ['event_admin', 'system_manager'] %}
+        <a href="{{ url_for('events.create_event') }}" class="btn btn-success">
+            <i class="fas fa-plus me-1"></i>Create Event
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Filter Tabs -->
+    <ul class="nav nav-tabs mb-4" id="eventTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="upcoming-tab" data-bs-toggle="tab" 
+                    data-bs-target="#upcoming" type="button" role="tab">
+                <i class="fas fa-calendar-plus me-1"></i>Upcoming Events
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="my-events-tab" data-bs-toggle="tab" 
+                    data-bs-target="#my-events" type="button" role="tab">
+                <i class="fas fa-calendar-check me-1"></i>My Events
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="past-tab" data-bs-toggle="tab" 
+                    data-bs-target="#past" type="button" role="tab">
+                <i class="fas fa-history me-1"></i>Past Events
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="eventTabsContent">
+        <!-- Upcoming Events -->
+        <div class="tab-pane fade show active" id="upcoming" role="tabpanel">
+            <div class="row" id="upcoming-events">
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Loading events...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Events -->
+        <div class="tab-pane fade" id="my-events" role="tabpanel">
+            <div class="row" id="registered-events">
+                <div class="col-12 text-center py-5">
+                    <p class="text-muted">Loading your events...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Past Events -->
+        <div class="tab-pane fade" id="past" role="tabpanel">
+            <div class="row" id="past-events">
+                <div class="col-12 text-center py-5">
+                    <p class="text-muted">Loading past events...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load events
+document.addEventListener('DOMContentLoaded', function() {
+    loadUpcomingEvents();
+    
+    // Load other tabs when clicked
+    document.getElementById('my-events-tab').addEventListener('click', loadMyEvents);
+    document.getElementById('past-tab').addEventListener('click', loadPastEvents);
+});
+
+function loadUpcomingEvents() {
+    fetch('/api/events?status=upcoming')
+        .then(response => response.json())
+        .then(data => {
+            displayEvents(data.events || [], 'upcoming-events');
+        })
+        .catch(error => {
+            document.getElementById('upcoming-events').innerHTML = 
+                '<div class="col-12"><div class="alert alert-danger">Error loading events</div></div>';
+        });
+}
+
+function loadMyEvents() {
+    fetch('/api/my-events')
+        .then(response => response.json())
+        .then(data => {
+            displayEvents(data.events || [], 'registered-events', true);
+        })
+        .catch(error => {
+            document.getElementById('registered-events').innerHTML = 
+                '<div class="col-12"><div class="alert alert-danger">Error loading your events</div></div>';
+        });
+}
+
+function loadPastEvents() {
+    fetch('/api/events?status=past')
+        .then(response => response.json())
+        .then(data => {
+            displayEvents(data.events || [], 'past-events');
+        })
+        .catch(error => {
+            document.getElementById('past-events').innerHTML = 
+                '<div class="col-12"><div class="alert alert-danger">Error loading past events</div></div>';
+        });
+}
+
+function displayEvents(events, containerId, showRegistered = false) {
+    const container = document.getElementById(containerId);
+    
+    if (events.length === 0) {
+        container.innerHTML = '<div class="col-12"><p class="text-center text-muted py-5">No events found</p></div>';
+        return;
+    }
+    
+    container.innerHTML = events.map(event => `
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm hover-card">
+                ${event.image_url ? `<img src="${event.image_url}" class="card-img-top" alt="${event.title}">` : ''}
+                <div class="card-body">
+                    <h5 class="card-title">${event.title}</h5>
+                    <p class="card-text text-muted small">
+                        <i class="fas fa-calendar me-1"></i>${event.start_date || 'TBD'}
+                        <br>
+                        <i class="fas fa-map-marker-alt me-1"></i>${event.location || 'Online'}
+                        <br>
+                        <i class="fas fa-users me-1"></i>${event.attendees || 0} attendees
+                    </p>
+                    ${showRegistered ? '<span class="badge bg-success mb-2">Registered</span>' : ''}
+                    <p class="card-text">${(event.description || '').substring(0, 100)}...</p>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="/events/${event.id}" class="btn btn-primary w-100">
+                        <i class="fas fa-info-circle me-1"></i>View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+</script>
+
+<style>
+.hover-card {
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.hover-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
+}
+</style>
+{% endblock %}

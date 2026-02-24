@@ -1,0 +1,66 @@
+
+[93mMANUAL STEP REQUIRED:[0m
+
+Open: [96mtemplates/base.html[0m
+
+Find the navigation section (around line 30-50) where you see:
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('events.index') }}">Events</a>
+    </li>
+
+[92mREPLACE IT WITH:[0m
+
+
+                    <!-- Events -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('events.index') }}">
+                            <i class="fas fa-calendar me-1"></i>Events
+                        </a>
+                    </li>
+                    
+                    <!-- NFC SCANNER - NEW -->
+                    <li class="nav-item">
+                        <a class="nav-link text-primary fw-bold" href="/nfc/scanner">
+                            <i class="fas fa-qrcode me-1"></i>🆕 Scanner
+                        </a>
+                    </li>
+                    
+                    <!-- MY QR CODE - NEW -->
+                    <li class="nav-item">
+                        <a class="nav-link text-success fw-bold" href="/profile/my-nfc">
+                            <i class="fas fa-id-card me-1"></i>🆕 My QR Code
+                        </a>
+                    </li>
+
+
+[93mTHEN ADD THIS BEFORE THE SYSTEM MANAGER DROPDOWN:[0m
+
+
+                    <!-- EVENT ADMIN - NEW (for event_admin and system_manager only) -->
+                    {% if session.get('role') in ['event_admin', 'system_manager'] %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-info fw-bold" href="#" id="eventAdminDropdown" 
+                           role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-calendar-check me-1"></i>🆕 Event Admin
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="eventAdminDropdown">
+                            <li>
+                                <a class="dropdown-item" href="/event-admin/dashboard">
+                                    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="/events/create">
+                                    <i class="fas fa-plus me-2"></i>Create Event
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="/event-admin/networking-analytics">
+                                    <i class="fas fa-project-diagram me-2"></i>Networking Analytics
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    {% endif %}
+

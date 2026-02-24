@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}System Dashboard{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>🔧 System Manager Dashboard</h2>
+    <div class="grid grid-3">
+        <div class="card">
+            <h3>{{ stats.total_users }}</h3>
+            <p>Total Users</p>
+        </div>
+        <div class="card">
+            <h3>{{ stats.total_events }}</h3>
+            <p>Total Events</p>
+        </div>
+        <div class="card">
+            <h3>{{ stats.pending_documents }}</h3>
+            <p>Pending Documents</p>
+        </div>
+    </div>
+    <a href="/system/documents" class="btn btn-primary">📄 Verify Documents</a>
+</div>
+{% endblock %}

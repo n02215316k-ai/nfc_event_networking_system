@@ -1,0 +1,63 @@
+import os
+
+FIXED_PROFILE_CONTROLLER_HEADER = """from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
+from database.db import db
+from functools import wraps
+import qrcode
+import io
+import base64
+
+profile_bp = Blueprint('profile', __name__)
+
+def login_required(f):
+    '''Decorator to require login'''
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login to continue', 'error')
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+"""
+
+print("\n🔧 Fixing profile_controller.py...\n")
+
+filepath = 'src/controllers/profile_controller.py'
+
+try:
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Split content to find where routes start
+    lines = content.split('\n')
+    
+    # Find first @profile_bp.route or @login_required
+    route_start_index = 0
+    for i, line in enumerate(lines):
+        if '@profile_bp.route' in line or ('@login_required' in line and i > 20):
+            route_start_index = i
+            break
+    
+    # Keep everything from the first route onwards
+    routes_content = '\n'.join(lines[route_start_index:])
+    
+    # Combine new header with existing routes
+    new_content = FIXED_PROFILE_CONTROLLER_HEADER.strip() + '\n\n' + routes_content
+    
+    # Backup original
+    backup_path = filepath + '.backup'
+    with open(backup_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f"✓ Backed up to: {backup_path}")
+    
+    # Write fixed version
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+    
+    print(f"✓ Fixed: {filepath}")
+    print("\n✅ Profile controller fixed! Try running: python app.py\n")
+
+except Exception as e:
+    print(f"❌ Error: {e}\n")
+    print("Please run: python view_profile_controller.py")
+    print("Then share the output so I can help fix it manually.")

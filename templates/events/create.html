@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Create Event - NFC Events{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>Create New Event
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('events.create_event') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Event Title *</label>
+                            <input type="text" class="form-control" id="title" name="title" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description *</label>
+                            <textarea class="form-control" id="description" name="description" 
+                                      rows="5" required></textarea>
+                            <small class="text-muted">Minimum 20 characters</small>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="category" class="form-label">Category *</label>
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="conference">Conference</option>
+                                    <option value="workshop">Workshop</option>
+                                    <option value="seminar">Seminar</option>
+                                    <option value="networking">Networking</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="max_attendees" class="form-label">Max Attendees</label>
+                                <input type="number" class="form-control" id="max_attendees" name="max_attendees" min="1">
+                                <small class="text-muted">Leave empty for unlimited</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="location" class="form-label">Location *</label>
+                                <input type="text" class="form-control" id="location" name="location" 
+                                       placeholder="e.g., Harare, Zimbabwe" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="venue" class="form-label">Venue</label>
+                                <input type="text" class="form-control" id="venue" name="venue" 
+                                       placeholder="e.g., Rainbow Towers">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="start_date" class="form-label">Start Date & Time *</label>
+                                <input type="datetime-local" class="form-control" id="start_date" name="start_date" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="end_date" class="form-label">End Date & Time *</label>
+                                <input type="datetime-local" class="form-control" id="end_date" name="end_date" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="cover_image" class="form-label">Cover Image</label>
+                            <input type="file" class="form-control" id="cover_image" name="cover_image" accept="image/*">
+                            <small class="text-muted">Recommended size: 800x400px</small>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check-circle me-2"></i>Create Event
+                            </button>
+                            <a href="{{ url_for('events.list_events') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

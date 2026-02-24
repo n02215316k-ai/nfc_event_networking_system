@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>⚙️ Admin Dashboard</h2>
+    <div class="grid grid-2">
+        <div class="card">
+            <h3>{{ stats.total_users }}</h3>
+            <p>Total Users</p>
+        </div>
+        <div class="card">
+            <h3>{{ stats.total_events }}</h3>
+            <p>Total Events</p>
+        </div>
+    </div>
+    
+    <h3 style="margin-top: 2rem;">My Events</h3>
+    {% for event in events %}
+    <div class="card">
+        <strong>{{ event.title }}</strong>
+        <p>{{ event.attendee_count }} attendees</p>
+        <a href="/events/{{ event.id }}" class="btn btn-primary">View</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

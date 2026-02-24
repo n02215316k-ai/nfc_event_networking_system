@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="text-align: center; padding: 4rem 2rem;">
+    <h1 style="font-size: 3rem; color: var(--primary-blue); margin-bottom: 1rem;">
+        🎫 NFC Event Management System
+    </h1>
+    <p style="font-size: 1.3rem; margin-bottom: 2rem;">
+        Your Digital Identity & Event Platform
+    </p>
+    <div class="d-flex gap-2" style="justify-content: center;">
+        <a href="/auth/signup" class="btn btn-primary" style="font-size: 1.2rem; padding: 1rem 2rem;">
+            Get Started
+        </a>
+        <a href="/auth/login" class="btn btn-secondary" style="font-size: 1.2rem; padding: 1rem 2rem;">
+            Login
+        </a>
+    </div>
+</div>
+
+<div class="grid grid-3 mt-3">
+    <div class="card" style="text-align: center;">
+        <h2>📱 Digital Identity</h2>
+        <p>Get your unique NFC badge and QR code upon registration</p>
+    </div>
+    
+    <div class="card" style="text-align: center;">
+        <h2>🎉 Event Management</h2>
+        <p>Create, manage, and attend events with easy check-in</p>
+    </div>
+    
+    <div class="card" style="text-align: center;">
+        <h2>🤝 Networking</h2>
+        <p>Connect with attendees and build your professional network</p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ user.full_name }} - Profile{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>👤 {{ user.full_name }}</h2>
+    <p>📧 {{ user.email }}</p>
+    
+    {% if user.biography %}
+    <h3>About</h3>
+    <p>{{ user.biography }}</p>
+    {% endif %}
+    
+    <div style="margin-top: 1rem;">
+        <strong>Followers:</strong> {{ followers_count }} | 
+        <strong>Following:</strong> {{ following_count }}
+    </div>
+    
+    {% if current_user.user_id and current_user.user_id != user.id %}
+    <button onclick="followUser({{ user.id }})" id="followBtn" class="btn btn-primary" style="margin-top: 1rem;">
+        {% if is_following %}Following{% else %}Follow{% endif %}
+    </button>
+    {% endif %}
+</div>
+
+<script>
+function followUser(userId) {
+    fetch('/users/' + userId + '/follow', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        });
+}
+</script>
+{% endblock %}
