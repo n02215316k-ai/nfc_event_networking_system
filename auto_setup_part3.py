@@ -134,7 +134,7 @@ def signup():
             user_id = db.execute_query('''
                 INSERT INTO users (email, password_hash, full_name, phone_number, role)
                 VALUES (%s, %s, %s, %s, 'user')
-            ''', (email, password_hash, full_name, phone_number), return_lastrowid=True)
+            ''', (email, password_hash, full_name, phone_number))
             
             # Auto-login
             session['user_id'] = user_id
@@ -331,7 +331,7 @@ def create_event():
                                   start_date, end_date, creator_id, status, max_attendees, cover_image)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'published', %s, %s)
             ''', (title, description, category, location, venue, start_date, end_date,
-                  session['user_id'], max_attendees, cover_image), return_lastrowid=True)
+                  session['user_id'], max_attendees, cover_image))
             
             # Generate QR code
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -355,7 +355,7 @@ def create_event():
                 VALUES (%s, %s, %s, %s, TRUE)
             ''', (f"{title} - Discussion Forum", 
                   f"Official discussion forum for {title}",
-                  session['user_id'], event_id), return_lastrowid=True)
+                  session['user_id'], event_id))
             
             # Add creator as forum admin
             db.execute_query('''

@@ -140,7 +140,6 @@ def event_details(event_id):
             er.*,
             u.full_name,
             u.email,
-            u.phone,
             a.check_in_time,
             a.check_out_time,
             a.check_in_method,
@@ -317,7 +316,25 @@ def event_reports(event_id):
         LIMIT 10
     ''', (event_id,), fetch=True) or []
     
+    
+        # Calculate attendance statistics
+            
+    # Calculate attendance statistics
+    attendance_stats = execute_query("""
+        SELECT 
+            COUNT(DISTINCT er.user_id) as total_registered,
+            COUNT(DISTINCT ec.user_id) as total_checked_in
+        FROM event_registrations er
+        LEFT JOIN event_checkins ec ON er.event_id = ec.event_id AND er.user_id = ec.user_id
+        WHERE er.event_id = %s
+    """, (event_id,), fetch=True, fetchone=True) or {
+        'total_registered': 0,
+        'total_checked_in': 0
+    }
+    
     return render_template('event_admin/reports.html',
+                         attendance_stats=attendance_stats,
+                             
                          event=event,
                          attendance_timeline=attendance_timeline,
                          checkin_methods=checkin_methods,
@@ -350,7 +367,7 @@ def generate_qr_codes(event_id):
     ''', (event_id,), fetch=True) or []
     
     # Generate QR codes if not already generated
-    from controllers.nfc_controller import generate_event_qr_code
+    from src.controllers.nfc_controller import generate_event_qr_code
     
     for reg in registrations:
         if not reg.get('qr_code'):

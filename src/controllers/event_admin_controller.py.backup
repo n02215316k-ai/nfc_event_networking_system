@@ -1,7 +1,37 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
-from database.db import db
+from database import get_db_connection
 from datetime import datetime, timedelta
 from functools import wraps
+
+
+# Database helper function
+def execute_query(query, params=None, fetch=False, fetchone=False):
+    """Execute database query with proper connection handling"""
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query, params or ())
+        
+        if fetch:
+            result = cursor.fetchone() if fetchone else cursor.fetchall()
+        else:
+            conn.commit()
+            result = cursor.lastrowid if cursor.lastrowid else True
+        
+        cursor.close()
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"Database error: {e}")
+        if conn:
+            conn.close()
+        return None
+
 
 event_admin_bp = Blueprint('event_admin', __name__, url_prefix='/event-admin')
 
@@ -21,7 +51,7 @@ def event_admin_required(f):
             flash('Please login to continue', 'error')
             return redirect(url_for('auth.login'))
         
-        user = db.execute_query(
+        user = execute_query(
             'SELECT role FROM users WHERE id = %s',
             (session['user_id'],), fetch=True, fetchone=True
         )
@@ -41,7 +71,7 @@ def dashboard():
     user_id = session.get('user_id')
     
     # Get admin's events
-    my_events = db.execute_query('''
+    my_events = execute_query('''
         SELECT 
             e.*,
             COUNT(DISTINCT er.id) as total_registrations,
@@ -65,7 +95,7 @@ def dashboard():
     }
     
     # Recent activity
-    recent_activity = db.execute_query('''
+    recent_activity = execute_query('''
         SELECT 
             ns.scan_type,
             ns.created_at,
@@ -93,7 +123,7 @@ def event_details(event_id):
     user_id = session.get('user_id')
     
     # Get event details
-    event = db.execute_query('''
+    event = execute_query('''
         SELECT e.*, u.full_name as creator_name
         FROM events e
         JOIN users u ON e.creator_id = u.id
@@ -105,7 +135,7 @@ def event_details(event_id):
         return redirect(url_for('event_admin.dashboard'))
     
     # Get registrations with attendance status
-    registrations = db.execute_query('''
+    registrations = execute_query('''
         SELECT 
             er.*,
             u.full_name,
@@ -127,7 +157,7 @@ def event_details(event_id):
     ''', (event_id,), fetch=True) or []
     
     # Attendance statistics
-    attendance_stats = db.execute_query('''
+    attendance_stats = execute_query('''
         SELECT 
             COUNT(DISTINCT er.id) as total_registered,
             COUNT(DISTINCT a.id) as total_checked_in,
@@ -140,7 +170,7 @@ def event_details(event_id):
     ''', (event_id,), fetch=True, fetchone=True) or {}
     
     # Check-in methods breakdown
-    checkin_methods = db.execute_query('''
+    checkin_methods = execute_query('''
         SELECT 
             check_in_method,
             COUNT(*) as count
@@ -163,7 +193,7 @@ def live_attendance(event_id):
     user_id = session.get('user_id')
     
     # Verify ownership
-    event = db.execute_query(
+    event = execute_query(
         'SELECT * FROM events WHERE id = %s AND creator_id = %s',
         (event_id, user_id), fetch=True, fetchone=True
     )
@@ -182,7 +212,7 @@ def attendance_data(event_id):
     user_id = session.get('user_id')
     
     # Verify ownership
-    event = db.execute_query(
+    event = execute_query(
         'SELECT id FROM events WHERE id = %s AND creator_id = %s',
         (event_id, user_id), fetch=True, fetchone=True
     )
@@ -191,7 +221,7 @@ def attendance_data(event_id):
         return jsonify({'error': 'Access denied'}), 403
     
     # Get current attendance
-    current_attendance = db.execute_query('''
+    current_attendance = execute_query('''
         SELECT 
             u.id,
             u.full_name,
@@ -214,7 +244,7 @@ def attendance_data(event_id):
             record['check_out_time'] = record['check_out_time'].strftime('%Y-%m-%d %H:%M:%S')
     
     # Statistics
-    stats = db.execute_query('''
+    stats = execute_query('''
         SELECT 
             COUNT(DISTINCT er.id) as total_registered,
             COUNT(DISTINCT a.id) as total_checked_in,
@@ -237,7 +267,7 @@ def event_reports(event_id):
     '''Generate event reports'''
     user_id = session.get('user_id')
     
-    event = db.execute_query(
+    event = execute_query(
         'SELECT * FROM events WHERE id = %s AND creator_id = %s',
         (event_id, user_id), fetch=True, fetchone=True
     )
@@ -247,7 +277,7 @@ def event_reports(event_id):
         return redirect(url_for('event_admin.dashboard'))
     
     # Attendance over time
-    attendance_timeline = db.execute_query('''
+    attendance_timeline = execute_query('''
         SELECT 
             DATE_FORMAT(check_in_time, '%Y-%m-%d %H:00:00') as hour,
             COUNT(*) as count
@@ -258,7 +288,7 @@ def event_reports(event_id):
     ''', (event_id,), fetch=True) or []
     
     # Check-in methods
-    checkin_methods = db.execute_query('''
+    checkin_methods = execute_query('''
         SELECT 
             check_in_method,
             COUNT(*) as count
@@ -268,14 +298,14 @@ def event_reports(event_id):
     ''', (event_id,), fetch=True) or []
     
     # Networking stats
-    networking_stats = db.execute_query('''
+    networking_stats = execute_query('''
         SELECT COUNT(*) as total_connections
         FROM networking_connections
         WHERE event_id = %s
     ''', (event_id,), fetch=True, fetchone=True) or {'total_connections': 0}
     
     # Top networkers
-    top_networkers = db.execute_query('''
+    top_networkers = execute_query('''
         SELECT 
             u.full_name,
             COUNT(*) as connections
@@ -301,7 +331,7 @@ def generate_qr_codes(event_id):
     '''Generate QR codes for all registrations'''
     user_id = session.get('user_id')
     
-    event = db.execute_query(
+    event = execute_query(
         'SELECT * FROM events WHERE id = %s AND creator_id = %s',
         (event_id, user_id), fetch=True, fetchone=True
     )
@@ -311,7 +341,7 @@ def generate_qr_codes(event_id):
         return redirect(url_for('event_admin.dashboard'))
     
     # Get all registrations
-    registrations = db.execute_query('''
+    registrations = execute_query('''
         SELECT er.*, u.full_name, u.email
         FROM event_registrations er
         JOIN users u ON er.user_id = u.id
@@ -327,7 +357,7 @@ def generate_qr_codes(event_id):
             qr_data, qr_image = generate_event_qr_code(event_id, reg['user_id'], reg['id'])
             
             # Update registration with QR code
-            db.execute_query('''
+            execute_query('''
                 UPDATE event_registrations 
                 SET qr_code = %s
                 WHERE id = %s
@@ -348,7 +378,7 @@ def manual_checkin(event_id):
     user_id = session.get('user_id')
     
     # Verify ownership
-    event = db.execute_query(
+    event = execute_query(
         'SELECT id FROM events WHERE id = %s AND creator_id = %s',
         (event_id, user_id), fetch=True, fetchone=True
     )
@@ -360,7 +390,7 @@ def manual_checkin(event_id):
     attendee_id = data.get('user_id')
     
     # Check if already checked in
-    existing = db.execute_query('''
+    existing = execute_query('''
         SELECT id FROM attendance 
         WHERE user_id = %s AND event_id = %s AND check_out_time IS NULL
     ''', (attendee_id, event_id), fetch=True, fetchone=True)
@@ -369,14 +399,14 @@ def manual_checkin(event_id):
         return jsonify({'success': False, 'message': 'Already checked in'})
     
     # Create attendance record
-    db.execute_query('''
+    execute_query('''
         INSERT INTO attendance 
         (event_id, user_id, check_in_time, check_in_method, status)
         VALUES (%s, %s, NOW(), 'manual', 'present')
     ''', (event_id, attendee_id))
     
     # Update registration
-    db.execute_query('''
+    execute_query('''
         UPDATE event_registrations 
         SET status = 'attended', checked_in_at = NOW()
         WHERE event_id = %s AND user_id = %s
@@ -395,7 +425,7 @@ def networking_analytics():
     user_id = session.get('user_id')
     
     # Get networking stats for admin's events
-    networking_by_event = db.execute_query('''
+    networking_by_event = execute_query('''
         SELECT 
             e.title,
             e.id,
@@ -408,7 +438,7 @@ def networking_analytics():
     ''', (user_id,), fetch=True) or []
     
     # Overall stats
-    total_connections = db.execute_query('''
+    total_connections = execute_query('''
         SELECT COUNT(*) as count
         FROM networking_connections nc
         JOIN events e ON nc.event_id = e.id
@@ -418,3 +448,55 @@ def networking_analytics():
     return render_template('event_admin/networking_analytics.html',
                          networking_by_event=networking_by_event,
                          total_connections=total_connections['count'])
+
+# Hyphenated URL aliases for consistency
+@event_admin_bp.route('/event-admin/dashboard', methods=['GET'])
+def dashboard_hyphenated():
+    """Alias for /event_admin/dashboard"""
+    return redirect('/event_admin/dashboard')
+
+@event_admin_bp.route('/event-admin/events', methods=['GET'])
+def events_list():
+    """List all assigned events"""
+    user = session.get('user')
+    if not user or user['role'] != 'event_admin':
+        flash('Access denied', 'error')
+        return redirect('/')
+    
+    # Get events assigned to this admin
+    events = Event.query.filter_by(admin_id=user['id']).all()
+    
+    return render_template('event_admin/events.html', events=events)
+
+@event_admin_bp.route('/event-admin/events/<int:event_id>', methods=['GET'])
+def event_detail_hyphenated(event_id):
+    """Alias for event detail"""
+    return redirect(f'/event_admin/event/{event_id}')
+
+@event_admin_bp.route('/event-admin/events/<int:event_id>/approve', methods=['POST'])
+def approve_event(event_id):
+    """Approve an event"""
+    user = session.get('user')
+    if not user or user['role'] != 'event_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    event = Event.query.get_or_404(event_id)
+    event.status = 'approved'
+    db.session.commit()
+    
+    flash('Event approved successfully!', 'success')
+    return redirect(f'/event_admin/event/{event_id}')
+
+@event_admin_bp.route('/event-admin/events/<int:event_id>/reject', methods=['POST'])
+def reject_event(event_id):
+    """Reject an event"""
+    user = session.get('user')
+    if not user or user['role'] != 'event_admin':
+        return jsonify({'error': 'Access denied'}), 403
+    
+    event = Event.query.get_or_404(event_id)
+    event.status = 'rejected'
+    db.session.commit()
+    
+    flash('Event rejected', 'info')
+    return redirect(f'/event_admin/event/{event_id}')

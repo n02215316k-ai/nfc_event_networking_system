@@ -8,7 +8,7 @@
         <div class="card-body">
             <h2 class="mb-4"><i class="fas fa-search me-2"></i>Search</h2>
             
-            <form method="GET" action="{{ url_for('search') }}">
+            <form method="GET" action="{{ url_for('index') }}">
                 <div class="input-group input-group-lg mb-4">
                     <input type="text" class="form-control" name="q" 
                            placeholder="Search events, users, forums..." 
@@ -76,7 +76,7 @@
                                             <small class="text-muted">{{ user.current_employment or 'User' }}</small>
                                         </div>
                                     </div>
-                                    <a href="{{ url_for('profile.view', user_id=user.id) }}" 
+                                    <a href="{{ url_for('profile.view_user_profile', user_id=user.id) }}" 
                                        class="btn btn-sm btn-outline-primary mt-2 w-100">
                                         View Profile
                                     </a>

@@ -1,87 +1,75 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}NFC/QR Scanner{% endblock %}
+{% block title %}Multi-Mode Scanner - NFC Event Network{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <div class="row justify-content-center">
-        <div class="col-lg-10">
-            
-            <!-- Page Header -->
-            <div class="text-center mb-4 text-white animate-in">
-                <h1 class="display-4 fw-bold">
-                    <i class="fas fa-qrcode me-3"></i>
-                    NFC/QR Scanner
-                </h1>
-                <p class="lead">Scan badges to connect or check-in to events</p>
-            </div>
-            
-            <div class="card shadow-lg animate-in">
-                <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #4F46E5, #06B6D4);">
-                    <div class="row align-items-center">
-                        <div class="col-md-6">
-                            <h4 class="mb-0">
-                                <i class="fas fa-broadcast-tower me-2"></i>
-                                Scanner Controls
-                            </h4>
-                        </div>
-                        <div class="col-md-6 text-end">
-                            <span class="badge bg-light text-dark">
-                                <i class="fas fa-circle text-success pulse"></i> Ready
-                            </span>
-                        </div>
-                    </div>
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-mobile-alt me-2"></i>Multi-Mode Scanner</h4>
                 </div>
-                
-                <div class="card-body p-4">
+                <div class="card-body">
                     
-                    <!-- Scanner Mode Selection -->
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">
-                                <i class="fas fa-sliders-h me-2"></i>
-                                Scanner Mode:
-                            </label>
-                            <select id="scannerMode" class="form-select form-select-lg">
-                                <option value="networking">🤝 Networking (Connect with People)</option>
-                                {% if session.role in ['event_admin', 'system_manager'] %}
-                                <option value="checkin">✅ Event Check-in/out</option>
-                                {% endif %}
-                            </select>
-                        </div>
-                        
-                        <!-- Event Selection (for check-in mode) -->
-                        <div class="col-md-6" id="eventSelectionDiv" style="display: none;">
-                            <label class="form-label fw-bold">
-                                <i class="fas fa-calendar-check me-2"></i>
-                                Select Event:
-                            </label>
-                            <select id="eventSelect" class="form-select form-select-lg">
-                                <option value="">-- Select Event --</option>
-                            </select>
-                        </div>
+                    <!-- Scan Mode Selection -->
+                    <div class="mb-4">
+                        <label for="scan_mode" class="form-label">
+                            <i class="fas fa-sliders-h me-2"></i>Scan Mode
+                        </label>
+                        <select class="form-select form-select-lg" id="scan_mode" name="scan_mode">
+                            <option value="network">📱 Network - Exchange Contact Info</option>
+                            <option value="checkin">✅ Check-In/Out - Mark Attendance</option>
+                        </select>
+                        <small class="text-muted">
+                            <span id="mode-description">Scan to connect with other attendees and exchange contact information</span>
+                        </small>
                     </div>
 
-                    <hr class="my-4">
+                    <!-- Event Selection (Only shown in check-in mode) -->
+                    <div class="mb-4" id="event-selector" style="display: none;">
+                        <label for="event_id" class="form-label">
+                            <i class="fas fa-calendar-check me-2"></i>Select Your Event
+                        </label>
+                        <select class="form-select form-select-lg" id="event_id" name="event_id">
+                            <option value="">-- Choose Event --</option>
+                            {% if user_events %}
+                                {% for event in user_events %}
+                                <option value="{{ event.id }}" {{ 'selected' if event_id and event.id == event_id|int else '' }}>
+                                    {{ event.title }} - {{ event.start_date.strftime('%b %d, %Y') }}
+                                </option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="" disabled>No events available</option>
+                            {% endif %}
+                        </select>
+                        <small class="text-muted">
+                            {% if user_events %}
+                            Select the event to check attendees in/out
+                            {% else %}
+                            <span class="text-warning">⚠️ You don't have any events yet. <a href="{{ url_for('events.my_events') }}">Create one</a> to use check-in mode.</span>
+                            {% endif %}
+                        </small>
+                    </div>
 
-                    <!-- Scan Method Tabs with LARGE VISIBLE BUTTONS -->
-                    <ul class="nav nav-tabs nav-fill mb-4" id="scanMethodTabs" role="tablist">
+                    <!-- Scanning Method Tabs -->
+                    <ul class="nav nav-pills mb-4" id="scanMethodTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="camera-tab" data-bs-toggle="tab" data-bs-target="#camera" type="button">
-                                <i class="fas fa-camera fa-2x d-block mb-2"></i>
-                                <span class="fw-bold">Camera QR</span>
+                            <button class="nav-link active" id="nfc-tab" data-bs-toggle="pill" 
+                                    data-bs-target="#nfc-panel" type="button" role="tab">
+                                <i class="fas fa-wifi me-2"></i>NFC Scan
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="nfc-tab" data-bs-toggle="tab" data-bs-target="#nfc" type="button">
-                                <i class="fas fa-wifi fa-2x d-block mb-2"></i>
-                                <span class="fw-bold">NFC Scan</span>
+                            <button class="nav-link" id="qr-tab" data-bs-toggle="pill" 
+                                    data-bs-target="#qr-panel" type="button" role="tab">
+                                <i class="fas fa-qrcode me-2"></i>QR Code
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual" type="button">
-                                <i class="fas fa-keyboard fa-2x d-block mb-2"></i>
-                                <span class="fw-bold">Manual Entry</span>
+                            <button class="nav-link" id="manual-tab" data-bs-toggle="pill" 
+                                    data-bs-target="#manual-panel" type="button" role="tab">
+                                <i class="fas fa-keyboard me-2"></i>Manual Input
                             </button>
                         </li>
                     </ul>
@@ -89,402 +77,452 @@
                     <!-- Tab Content -->
                     <div class="tab-content" id="scanMethodContent">
                         
-                        <!-- Camera QR Scanner -->
-                        <div class="tab-pane fade show active" id="camera" role="tabpanel">
-                            <div class="text-center p-4">
-                                <div id="reader" class="mb-4" style="border-radius: 16px; overflow: hidden; max-width: 500px; margin: 0 auto; border: 3px solid #4F46E5;"></div>
-                                
-                                <div class="d-grid gap-3">
-                                    <button id="startCameraBtn" class="btn btn-primary btn-lg">
-                                        <i class="fas fa-camera fa-2x d-block mb-2"></i>
-                                        <span class="fs-5 fw-bold">START CAMERA SCANNER</span>
+                        <!-- NFC Panel -->
+                        <div class="tab-pane fade show active" id="nfc-panel" role="tabpanel">
+                            <div class="card bg-light">
+                                <div class="card-body text-center py-5">
+                                    <div class="mb-4">
+                                        <i class="fas fa-wifi fa-5x text-primary"></i>
+                                    </div>
+                                    <h4>NFC Ready</h4>
+                                    <p class="text-muted mb-4">
+                                        Hold your device near another NFC-enabled device to scan
+                                    </p>
+                                    <button id="nfc-scan-btn" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-satellite-dish me-2"></i>Start NFC Scan
                                     </button>
-                                    <button id="stopCameraBtn" class="btn btn-danger btn-lg" style="display: none;">
-                                        <i class="fas fa-stop fa-2x d-block mb-2"></i>
-                                        <span class="fs-5 fw-bold">STOP CAMERA</span>
-                                    </button>
-                                </div>
-                                
-                                <div class="alert alert-info mt-4">
-                                    <i class="fas fa-info-circle me-2"></i>
-                                    <strong>How to use:</strong> Click the button above, allow camera access, then point your camera at a QR code
+                                    <div id="nfc-status" class="mt-3"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- NFC Scanner -->
-                        <div class="tab-pane fade" id="nfc" role="tabpanel">
-                            <div class="text-center p-5">
-                                <div id="nfcStatus" class="mb-4">
-                                    <i class="fas fa-wifi fa-5x text-primary mb-3 pulse"></i>
-                                    <h3 class="fw-bold">NFC Ready</h3>
-                                    <p class="text-muted fs-5">Click the button below and tap an NFC badge</p>
-                                </div>
-                                
-                                <div class="d-grid gap-3 mb-4">
-                                    <button id="startNfcBtn" class="btn btn-success btn-lg">
-                                        <i class="fas fa-wifi fa-2x d-block mb-2"></i>
-                                        <span class="fs-5 fw-bold">START NFC SCAN</span>
-                                    </button>
-                                    <button id="stopNfcBtn" class="btn btn-danger btn-lg" style="display: none;">
-                                        <i class="fas fa-stop fa-2x d-block mb-2"></i>
-                                        <span class="fs-5 fw-bold">STOP NFC SCAN</span>
-                                    </button>
-                                </div>
-                                
-                                <div class="alert alert-info">
-                                    <h5 class="alert-heading">
-                                        <i class="fas fa-lightbulb me-2"></i>
-                                        How to use NFC:
-                                    </h5>
-                                    <ol class="text-start mb-0">
-                                        <li class="mb-2">Click "START NFC SCAN" button above</li>
-                                        <li class="mb-2">Tap your phone to another phone/badge</li>
-                                        <li class="mb-2">Wait for confirmation message</li>
-                                    </ol>
-                                    <hr>
-                                    <small class="text-muted">
-                                        <i class="fas fa-exclamation-triangle me-1"></i>
-                                        Note: NFC requires compatible hardware. Not all devices support NFC scanning.
-                                    </small>
+                        <!-- QR Code Panel -->
+                        <div class="tab-pane fade" id="qr-panel" role="tabpanel">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <div id="qr-reader" class="ratio ratio-1x1" style="max-width: 500px; margin: 0 auto;">
+                                        <!-- QR Scanner will be initialized here -->
+                                    </div>
+                                    <div class="text-center mt-3">
+                                        <button id="qr-start-btn" class="btn btn-success">
+                                            <i class="fas fa-camera me-2"></i>Start Camera
+                                        </button>
+                                        <button id="qr-stop-btn" class="btn btn-danger" style="display: none;">
+                                            <i class="fas fa-stop me-2"></i>Stop Camera
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Manual Entry -->
-                        <div class="tab-pane fade" id="manual" role="tabpanel">
-                            <div class="p-4">
-                                <div class="mb-4">
-                                    <label for="manualBadgeId" class="form-label fs-5 fw-bold">
-                                        <i class="fas fa-id-card me-2"></i>
-                                        Enter Badge ID or Email:
-                                    </label>
-                                    <input type="text" 
-                                           class="form-control form-control-lg" 
-                                           id="manualBadgeId" 
-                                           placeholder="e.g., NFC-ABC123XYZ or user@email.com"
-                                           autocomplete="off"
-                                           style="font-size: 1.2rem; padding: 1rem;">
-                                    <small class="text-muted mt-2 d-block">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        Badge ID format: NFC-XXXXXXXXXXXX
-                                    </small>
-                                </div>
-                                
-                                <div class="d-grid">
-                                    <button id="submitManualBtn" class="btn btn-primary btn-lg">
-                                        <i class="fas fa-paper-plane fa-2x d-block mb-2"></i>
-                                        <span class="fs-5 fw-bold">SUBMIT SCAN</span>
-                                    </button>
-                                </div>
-                                
-                                <div class="alert alert-warning mt-4">
-                                    <i class="fas fa-keyboard me-2"></i>
-                                    <strong>Manual Entry:</strong> Type the badge ID shown on someone's badge or enter their email address
+                        <!-- Manual Input Panel -->
+                        <div class="tab-pane fade" id="manual-panel" role="tabpanel">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="mb-3">Enter User ID or Profile URL</h5>
+                                    <form id="manual-scan-form">
+                                        <div class="input-group input-group-lg mb-3">
+                                            <input type="text" class="form-control" id="manual-input" 
+                                                   placeholder="Enter user ID, URL, or scan code" required>
+                                            <button class="btn btn-primary" type="submit">
+                                                <i class="fas fa-search me-2"></i>Search
+                                            </button>
+                                        </div>
+                                    </form>
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Accepted formats:</strong>
+                                        <ul class="mb-0 mt-2">
+                                            <li>User ID: <code>123</code></li>
+                                            <li>Profile URL: <code>http://localhost:5000/profile/user/123</code></li>
+                                            <li>NFC Data: <code>USER:123|URL:...</code></li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
                     </div>
 
-                    <!-- Scan Result Display -->
-                    <div id="scanResult" class="mt-4" style="display: none;">
-                        <div class="alert alert-dismissible fade show" id="resultAlert">
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            <div id="resultContent"></div>
+                    <!-- Scan Result -->
+                    <div id="scan-result" class="alert mt-4" style="display: none;"></div>
+
+                    <!-- Recent Scans -->
+                    <div class="mt-4">
+                        <h5><i class="fas fa-history me-2"></i>Recent Scans</h5>
+                        <div id="recent-scans" class="list-group">
+                            <div class="list-group-item text-muted text-center">
+                                No recent scans
+                            </div>
                         </div>
                     </div>
 
                 </div>
             </div>
-            
-            <!-- Recent Scans Card -->
-            <div class="card shadow-lg mt-4 animate-in">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0">
-                        <i class="fas fa-history me-2"></i>
-                        Recent Scans
-                    </h5>
+
+            <!-- Instructions Card -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>How to Use</h5>
                 </div>
                 <div class="card-body">
-                    <div id="recentScans" class="list-group">
-                        <div class="list-group-item text-muted text-center">
-                            <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
-                            No scans yet. Start scanning to see your activity here!
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-wifi text-primary me-2"></i>NFC Method</h6>
+                            <ul class="small">
+                                <li>Most convenient for close contact</li>
+                                <li>Tap devices together</li>
+                                <li>Works instantly</li>
+                                <li>Requires NFC-enabled device</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-qrcode text-success me-2"></i>QR Code Method</h6>
+                            <ul class="small">
+                                <li>Works from a distance</li>
+                                <li>Point camera at QR code</li>
+                                <li>Allow camera access</li>
+                                <li>Works on all devices</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <h6><i class="fas fa-keyboard text-info me-2"></i>Manual Method</h6>
+                            <ul class="small">
+                                <li>Fallback option</li>
+                                <li>Type user ID or paste URL</li>
+                                <li>Good for troubleshooting</li>
+                                <li>No hardware required</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
-            
         </div>
     </div>
 </div>
 
-<!-- HTML5 QR Code Scanner Library -->
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
-<style>
-    .pulse {
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-    }
-    
-    .nav-tabs .nav-link {
-        padding: 1.5rem;
-        min-height: 120px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-    }
-    
-    #reader video {
-        border-radius: 12px;
-    }
-</style>
+<!-- Include HTML5 QR Code Scanner -->
+<script src="https://unpkg.com/html5-qrcode"></script>
 
 <script>
-let html5QrCode = null;
-let scannerMode = 'networking';
+let html5QrCode;
+let scanMode = 'network';
 let selectedEventId = null;
-let recentScans = [];
+let qrScannerActive = false;
 
-// Scanner Mode Change
-document.getElementById('scannerMode').addEventListener('change', function() {
-    scannerMode = this.value;
-    const eventDiv = document.getElementById('eventSelectionDiv');
+// Mode descriptions
+const modeDescriptions = {
+    'network': 'Scan to connect with other attendees and exchange contact information',
+    'checkin': 'Scan attendee QR codes to mark them as checked in or out of your event'
+};
+
+// ==================== NFC FUNCTIONS ====================
+
+document.getElementById('nfc-scan-btn').addEventListener('click', async function() {
+    const statusDiv = document.getElementById('nfc-status');
     
-    if (scannerMode === 'checkin') {
-        eventDiv.style.display = 'block';
-        loadEvents();
-    } else {
-        eventDiv.style.display = 'none';
-    }
-});
-
-// Event Selection
-document.getElementById('eventSelect').addEventListener('change', function() {
-    selectedEventId = this.value;
-});
-
-// Load Events
-async function loadEvents() {
-    try {
-        const response = await fetch('/api/events/upcoming');
-        const data = await response.json();
-        
-        const eventSelect = document.getElementById('eventSelect');
-        eventSelect.innerHTML = '<option value="">-- Select Event --</option>';
-        
-        if (data.events && data.events.length > 0) {
-            data.events.forEach(event => {
-                eventSelect.innerHTML += `<option value="${event.id}">${event.title} - ${event.event_date}</option>`;
-            });
-        }
-    } catch (error) {
-        console.error('Error loading events:', error);
-    }
-}
-
-// Camera Scanner
-document.getElementById('startCameraBtn').addEventListener('click', function() {
-    startCameraScanner();
-});
-
-document.getElementById('stopCameraBtn').addEventListener('click', function() {
-    stopCameraScanner();
-});
-
-function startCameraScanner() {
-    html5QrCode = new Html5Qrcode("reader");
-    
-    html5QrCode.start(
-        { facingMode: "environment" },
-        { 
-            fps: 10, 
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0
-        },
-        onScanSuccess,
-        onScanError
-    ).then(() => {
-        document.getElementById('startCameraBtn').style.display = 'none';
-        document.getElementById('stopCameraBtn').style.display = 'block';
-    }).catch(err => {
-        showResult('danger', `Camera error: ${err}. Please allow camera access.`);
-    });
-}
-
-function stopCameraScanner() {
-    if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-            document.getElementById('startCameraBtn').style.display = 'block';
-            document.getElementById('stopCameraBtn').style.display = 'none';
-        });
-    }
-}
-
-function onScanSuccess(decodedText, decodedResult) {
-    console.log('QR Code scanned:', decodedText);
-    processScan(decodedText, 'qr');
-    stopCameraScanner();
-}
-
-function onScanError(error) {
-    // Ignore continuous scanning errors
-}
-
-// NFC Scanner
-document.getElementById('startNfcBtn').addEventListener('click', async function() {
     if ('NDEFReader' in window) {
         try {
             const ndef = new NDEFReader();
             await ndef.scan();
             
-            document.getElementById('startNfcBtn').style.display = 'none';
-            document.getElementById('stopNfcBtn').style.display = 'block';
-            document.getElementById('nfcStatus').innerHTML = `
-                <i class="fas fa-wifi fa-5x text-success fa-pulse mb-3"></i>
-                <h3 class="text-success fw-bold">NFC Scanning Active</h3>
-                <p class="text-muted fs-5">Tap an NFC badge now...</p>
-            `;
+            statusDiv.innerHTML = '<div class="alert alert-success">NFC Scanner Active - Tap a device</div>';
             
             ndef.addEventListener("reading", ({ message, serialNumber }) => {
-                let nfcData = '';
+                statusDiv.innerHTML = '<div class="alert alert-info">Processing NFC tag...</div>';
+                
+                // Process NFC data
                 for (const record of message.records) {
-                    const decoder = new TextDecoder(record.encoding);
-                    nfcData = decoder.decode(record.data);
+                    if (record.recordType === "text") {
+                        const textDecoder = new TextDecoder(record.encoding);
+                        const data = textDecoder.decode(record.data);
+                        processScan(data, 'NFC');
+                    }
                 }
-                processScan(nfcData, 'nfc');
             });
             
         } catch (error) {
-            showResult('danger', `NFC Error: ${error.message}`);
+            console.error('NFC Error:', error);
+            statusDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <strong>NFC not available:</strong> ${error.message}<br>
+                    <small>Try QR Code or Manual input instead</small>
+                </div>
+            `;
         }
     } else {
-        showResult('warning', 'NFC is not supported on this device. Please use QR code or manual entry instead.');
-    }
-});
-
-document.getElementById('stopNfcBtn').addEventListener('click', function() {
-    document.getElementById('startNfcBtn').style.display = 'block';
-    document.getElementById('stopNfcBtn').style.display = 'none';
-    document.getElementById('nfcStatus').innerHTML = `
-        <i class="fas fa-wifi fa-5x text-primary mb-3"></i>
-        <h3 class="fw-bold">NFC Ready</h3>
-        <p class="text-muted fs-5">Click the button below and tap an NFC badge</p>
-    `;
-});
-
-// Manual Entry
-document.getElementById('submitManualBtn').addEventListener('click', function() {
-    const badgeId = document.getElementById('manualBadgeId').value.trim();
-    if (badgeId) {
-        processScan(badgeId, 'manual');
-    } else {
-        showResult('danger', 'Please enter a badge ID or email');
-    }
-});
-
-document.getElementById('manualBadgeId').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        document.getElementById('submitManualBtn').click();
-    }
-});
-
-// Process Scan
-async function processScan(scanData, scanMethod) {
-    try {
-        if (scannerMode === 'checkin' && !selectedEventId) {
-            showResult('danger', 'Please select an event first');
-            return;
-        }
-        
-        const response = await fetch('/nfc/scan', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                scan_data: scanData,
-                scan_method: scanMethod,
-                scanner_mode: scannerMode,
-                event_id: selectedEventId
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showResult('success', `<i class="fas fa-check-circle fa-2x d-block mb-2"></i><strong>${data.message}</strong>`);
-            addRecentScan(data, scanMethod);
-            document.getElementById('manualBadgeId').value = '';
-        } else {
-            showResult('danger', `<i class="fas fa-times-circle fa-2x d-block mb-2"></i><strong>${data.message || 'Scan failed'}</strong>`);
-        }
-        
-    } catch (error) {
-        showResult('danger', `Error: ${error.message}`);
-    }
-}
-
-// Show Result
-function showResult(type, message) {
-    const resultDiv = document.getElementById('scanResult');
-    const resultAlert = document.getElementById('resultAlert');
-    const resultContent = document.getElementById('resultContent');
-    
-    resultAlert.className = `alert alert-${type} alert-dismissible fade show`;
-    resultContent.innerHTML = message;
-    resultDiv.style.display = 'block';
-    
-    setTimeout(() => {
-        resultDiv.style.display = 'none';
-    }, 5000);
-}
-
-// Recent Scans
-function addRecentScan(data, method) {
-    const scanItem = {
-        time: new Date().toLocaleTimeString(),
-        method: method.toUpperCase(),
-        message: data.message,
-        type: data.action || 'scan'
-    };
-    
-    recentScans.unshift(scanItem);
-    if (recentScans.length > 5) recentScans.pop();
-    
-    updateRecentScans();
-}
-
-function updateRecentScans() {
-    const container = document.getElementById('recentScans');
-    
-    if (recentScans.length === 0) {
-        container.innerHTML = `
-            <div class="list-group-item text-muted text-center">
-                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
-                No scans yet. Start scanning!
+        statusDiv.innerHTML = `
+            <div class="alert alert-warning">
+                <strong>NFC not supported on this device</strong><br>
+                Please use QR Code or Manual input method
             </div>
         `;
+    }
+});
+
+// ==================== QR CODE FUNCTIONS ====================
+
+document.getElementById('qr-start-btn').addEventListener('click', function() {
+    startQRScanner();
+});
+
+document.getElementById('qr-stop-btn').addEventListener('click', function() {
+    stopQRScanner();
+});
+
+function startQRScanner() {
+    if (qrScannerActive) return;
+    
+    html5QrCode = new Html5Qrcode("qr-reader");
+    
+    const config = { 
+        fps: 10,
+        qrbox: { width: 250, height: 250 }
+    };
+
+    html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        onQRScanSuccess,
+        onQRScanError
+    ).then(() => {
+        qrScannerActive = true;
+        document.getElementById('qr-start-btn').style.display = 'none';
+        document.getElementById('qr-stop-btn').style.display = 'inline-block';
+    }).catch(err => {
+        console.error('QR Scanner error:', err);
+        alert('Could not start camera. Please ensure you have granted camera permissions.');
+    });
+}
+
+function stopQRScanner() {
+    if (html5QrCode && qrScannerActive) {
+        html5QrCode.stop().then(() => {
+            qrScannerActive = false;
+            document.getElementById('qr-start-btn').style.display = 'inline-block';
+            document.getElementById('qr-stop-btn').style.display = 'none';
+        });
+    }
+}
+
+function onQRScanSuccess(decodedText, decodedResult) {
+    console.log(`QR Scan result: ${decodedText}`);
+    html5QrCode.pause();
+    processScan(decodedText, 'QR Code');
+    setTimeout(() => {
+        if (qrScannerActive) html5QrCode.resume();
+    }, 3000);
+}
+
+function onQRScanError(errorMessage) {
+    // Ignore frequent errors
+}
+
+// Stop QR scanner when switching tabs
+document.getElementById('nfc-tab').addEventListener('shown.bs.tab', function() {
+    stopQRScanner();
+});
+
+document.getElementById('manual-tab').addEventListener('shown.bs.tab', function() {
+    stopQRScanner();
+});
+
+// ==================== MANUAL INPUT FUNCTIONS ====================
+
+document.getElementById('manual-scan-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const input = document.getElementById('manual-input').value.trim();
+    if (input) {
+        processScan(input, 'Manual');
+        document.getElementById('manual-input').value = '';
+    }
+});
+
+// ==================== COMMON PROCESSING FUNCTION ====================
+
+function processScan(scannedData, method) {
+    let userId = null;
+    
+    // Extract user ID from multiple formats
+    console.log('Processing scan:', scannedData);
+    
+    // Format 1: Full profile URL (http://domain.com/profile/user/123)
+    if (scannedData.includes('/profile/user/')) {
+        const match = scannedData.match(/\/profile\/user\/(\d+)/);
+        if (match) userId = match[1];
+        console.log('Format 1 - Profile URL:', userId);
+    }
+    // Format 2: NFC data format (USER:123|URL:...)
+    else if (scannedData.includes('USER:')) {
+        const parts = scannedData.split('|');
+        userId = parts[0].replace('USER:', '').trim();
+        console.log('Format 2 - NFC data:', userId);
+    }
+    // Format 3: Simple numeric ID
+    else if (!isNaN(scannedData)) {
+        userId = scannedData;
+        console.log('Format 3 - Numeric ID:', userId);
+    }
+    // Format 4: Any URL containing /user/ or /profile/
+    else if (scannedData.includes('http')) {
+        const match = scannedData.match(/\/(user|profile)\/(\d+)/);
+        if (match) userId = match[2];
+        console.log('Format 4 - Generic URL:', userId);
+    }
+    // Format 5: Just extract any number
+    else {
+        const match = scannedData.match(/\d+/);
+        if (match) userId = match[0];
+        console.log('Format 5 - Extract number:', userId);
+    }
+    
+    if (!userId) {
+        showScanResult('danger', 'Invalid scan data format');
+        console.error('Could not extract user ID from:', scannedData);
         return;
     }
     
-    container.innerHTML = recentScans.map(scan => `
-        <div class="list-group-item">
+    showScanResult('info', `<i class="spinner-border spinner-border-sm me-2"></i>Processing ${method} scan...`);
+    
+    // Prepare request
+    const requestData = {
+        scanned_user_id: userId,
+        scan_mode: scanMode,
+        method: method
+    };
+    
+    if (scanMode === 'checkin') {
+        if (!selectedEventId) {
+            showScanResult('warning', 'Please select an event first');
+            return;
+        }
+        requestData.event_id = selectedEventId;
+    }
+    
+    // Send to server
+    fetch('/nfc/process-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (scanMode === 'checkin') {
+                showScanResult('success', `
+                    <strong>${data.user.name}</strong> ${data.action}!<br>
+                    <small>Event: ${data.event} at ${data.time} (via ${method})</small>
+                `);
+            } else {
+                showScanResult('success', `
+                    <strong>Connected!</strong> Added ${data.scanned_user.name} via ${method}<br>
+                    <small>${data.scanned_user.email}</small>
+                `);
+            }
+            addToRecentScans(data, method);
+        } else {
+            showScanResult('danger', data.message || 'Scan failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showScanResult('danger', 'Error processing scan');
+    });
+}
+
+function showScanResult(type, message) {
+    const resultDiv = document.getElementById('scan-result');
+    resultDiv.style.display = 'block';
+    resultDiv.className = `alert alert-${type}`;
+    resultDiv.innerHTML = message;
+}
+
+function addToRecentScans(data, method) {
+    const recentScans = document.getElementById('recent-scans');
+    
+    // Remove "no scans" message
+    if (recentScans.querySelector('.text-muted')) {
+        recentScans.innerHTML = '';
+    }
+    
+    const scanItem = document.createElement('div');
+    scanItem.className = 'list-group-item';
+    
+    const methodBadge = `<span class="badge bg-secondary">${method}</span>`;
+    
+    if (data.action) {
+        scanItem.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <span class="badge bg-primary me-2">${scan.method}</span>
-                    <strong>${scan.message}</strong>
+                    <strong>${data.user.name}</strong><br>
+                    <small class="text-muted">${data.action} - ${data.time}</small>
                 </div>
-                <small class="text-muted">${scan.time}</small>
+                <div>
+                    ${methodBadge}
+                    <span class="badge bg-${data.status} ms-1">${data.action}</span>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    } else {
+        scanItem.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${data.scanned_user.name}</strong><br>
+                    <small class="text-muted">${data.scanned_user.email}</small>
+                </div>
+                <div>
+                    ${methodBadge}
+                    <span class="badge bg-success ms-1">Connected</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    recentScans.insertBefore(scanItem, recentScans.firstChild);
+    
+    // Keep only last 10 scans
+    while (recentScans.children.length > 10) {
+        recentScans.removeChild(recentScans.lastChild);
+    }
 }
+
+// ==================== MODE HANDLING ====================
+
+document.getElementById('scan_mode').addEventListener('change', function() {
+    scanMode = this.value;
+    const eventSelector = document.getElementById('event-selector');
+    const modeDescription = document.getElementById('mode-description');
+    
+    if (scanMode === 'checkin') {
+        eventSelector.style.display = 'block';
+        modeDescription.textContent = modeDescriptions['checkin'];
+    } else {
+        eventSelector.style.display = 'none';
+        modeDescription.textContent = modeDescriptions['network'];
+    }
+});
+
+document.getElementById('event_id')?.addEventListener('change', function() {
+    selectedEventId = this.value;
+});
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Check URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const eventIdParam = urlParams.get('event_id');
+    
+    if (eventIdParam) {
+        document.getElementById('scan_mode').value = 'checkin';
+        document.getElementById('scan_mode').dispatchEvent(new Event('change'));
+        document.getElementById('event_id').value = eventIdParam;
+        selectedEventId = eventIdParam;
+    }
+});
+
+// Cleanup
+window.addEventListener('beforeunload', function() {
+    stopQRScanner();
+});
 </script>
 {% endblock %}

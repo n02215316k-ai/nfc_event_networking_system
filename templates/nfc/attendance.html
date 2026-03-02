@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Event Attendance - {{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-clipboard-check me-2"></i>Attendance Tracking</h2>
+                    <p class="text-muted mb-0">{{ event.title }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('nfc.scanner_page', event_id=event.id) }}" class="btn btn-primary">
+                        <i class="fas fa-qrcode me-2"></i>Scan QR Codes
+                    </a>
+                    <a href="{{ url_for('events.detail', event_id=event.id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Event
+                    </a>
+                </div>
+            </div>
+
+            <!-- Attendance Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ stats.total_registered }}</h3>
+                            <p class="mb-0">Registered</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{{ stats.checked_in }}</h3>
+                            <p class="mb-0">Checked In</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-warning">{{ stats.present }}</h3>
+                            <p class="mb-0">Currently Present</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-info">{{ stats.checked_out }}</h3>
+                            <p class="mb-0">Checked Out</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance List -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Attendee List</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Check-In Time</th>
+                                <th>Check-Out Time</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attendee in attendees %}
+                            <tr>
+                                <td>{{ attendee.full_name }}</td>
+                                <td>{{ attendee.email }}</td>
+                                <td>
+                                    {% if attendee.check_in_time %}
+                                        <i class="fas fa-check text-success me-1"></i>
+                                        {{ attendee.check_in_time.strftime('%I:%M %p') }}
+                                    {% else %}
+                                        <span class="text-muted">Not checked in</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attendee.check_out_time %}
+                                        <i class="fas fa-sign-out-alt text-info me-1"></i>
+                                        {{ attendee.check_out_time.strftime('%I:%M %p') }}
+                                    {% else %}
+                                        <span class="text-muted">--</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not attendee.check_in_time %}
+                                        <span class="badge bg-secondary">Not Arrived</span>
+                                    {% elif attendee.check_out_time %}
+                                        <span class="badge bg-info">Checked Out</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Present</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

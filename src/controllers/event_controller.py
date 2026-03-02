@@ -6,6 +6,9 @@ import os
 import qrcode
 from io import BytesIO
 import base64
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
+from database import get_db_connection
+from datetime import datetime
 
 
 # Database helper function
@@ -151,12 +154,14 @@ def create_event():
         
         # Create event
         try:
-            event_id = execute_query('''
+            execute_query('''
                 INSERT INTO events (title, description, category, location, venue,
                                   start_date, end_date, creator_id, status, max_attendees, cover_image)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'published', %s, %s)
             ''', (title, description, category, location, venue, start_date, end_date,
-                  session['user_id'], max_attendees, cover_image), return_lastrowid=True)
+                  session['user_id'], max_attendees, cover_image), fetch=False)
+            # Get the last inserted ID
+            event_id = execute_query("SELECT LAST_INSERT_ID() as id", fetch=True, fetchone=True)["id"]
             
             # Generate QR code
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -176,11 +181,11 @@ def create_event():
             
             # AUTO-CREATE FORUM FOR EVENT (New feature from prompt)
             forum_id = execute_query('''
-                INSERT INTO forums (title, description, creator_id, event_id, is_public)
+        # INSERT INTO forums (title, description, creator_id, event_id, is_public)
                 VALUES (%s, %s, %s, %s, TRUE)
             ''', (f"{title} - Discussion Forum", 
                   f"Official discussion forum for {title}",
-                  session['user_id'], event_id), return_lastrowid=True)
+                  session['user_id'], event_id))
             
             # Add creator as forum admin
             execute_query('''
@@ -190,10 +195,15 @@ def create_event():
             
             # Auto-register creator for the event
             execute_query('''
-                INSERT INTO attendance (event_id, user_id, status)
+        # INSERT INTO attendance (event_id, user_id, status)
                 VALUES (%s, %s, 'registered')
             ''', (event_id, session['user_id']))
             
+        except Exception as e:
+            print(f"Event creation error: {e}")
+            flash('Error creating event. Please try again.', 'error')
+            return render_template('events/create.html')
+        
             flash('Event created successfully! Forum has been created automatically.', 'success')
             return redirect(url_for('events.detail', event_id=event_id))
             

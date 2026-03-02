@@ -1,9 +1,13 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+import os
+from datetime import datetime
 from database import get_db_connection
 from functools import wraps
 import qrcode
-import io
+from io import BytesIO
 import base64
+import io
+from werkzeug.utils import secure_filename
 
 
 # Database helper function
@@ -47,8 +51,13 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def allowed_file(filename, allowed_extensions):
+    """Check if file has allowed extension"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+
 @profile_bp.route('/<int:user_id>')
-def view(user_id):
+def view_user_profile(user_id):
     '''View user profile'''
     user = execute_query(
         "SELECT * FROM users WHERE id = %s",
@@ -118,6 +127,21 @@ def view(user_id):
     
     is_own_profile = 'user_id' in session and session['user_id'] == user_id
     
+    
+    # Generate dynamic profile URL
+    profile_url = request.url_root.rstrip('/') + url_for('profile.view_user_profile', user_id=user['id'])
+    nfc_data = f"USER:{user['id']}|URL:{profile_url}"
+    
+    # Generate QR code with profile URL
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(profile_url)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = BytesIO()
+    img.save(buffer, format='PNG')
+    qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
+    
     return render_template('profile/view.html',
                          user=user,
                          qualifications=qualifications,
@@ -127,6 +151,16 @@ def view(user_id):
                          recent_events=recent_events,
                          forum_count=forum_count,
                          is_own_profile=is_own_profile)
+
+@profile_bp.route('/me')
+def me():
+    '''Redirect to current user's profile'''
+    if 'user_id' not in session:
+        flash('Please login first', 'error')
+        return redirect(url_for('auth.login'))
+    
+    return redirect(url_for('profile.view_user_profile', user_id=session['user_id']))
+
 
 @profile_bp.route('/edit', methods=['GET', 'POST'])
 @login_required
@@ -153,7 +187,7 @@ def edit():
         profile_picture = user['profile_picture']
         if 'profile_picture' in request.files:
             file = request.files['profile_picture']
-            if file and file.filename and current_app.allowed_file(file.filename):
+            if file and file.filename and allowed_file(file.filename, {'pdf', 'png', 'jpg', 'jpeg'}):
                 filename = secure_filename(f"profile_{session['user_id']}_{datetime.now().timestamp()}_{file.filename}")
                 filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profiles', filename)
                 file.save(filepath)
@@ -175,7 +209,7 @@ def edit():
             session['user_name'] = full_name
             
             flash('Profile updated successfully!', 'success')
-            return redirect(url_for('profile.view', user_id=session['user_id']))
+            return redirect(url_for('profile.view_user_profile', user_id=session['user_id']))
             
         except Exception as e:
             flash('An error occurred while updating your profile.', 'danger')
@@ -196,7 +230,7 @@ def add_qualification():
     document_path = None
     if 'document' in request.files:
         file = request.files['document']
-        if file and file.filename and current_app.allowed_file(file.filename):
+        if file and file.filename and allowed_file(file.filename, {'pdf', 'png', 'jpg', 'jpeg'}):
             filename = secure_filename(f"qual_{session['user_id']}_{datetime.now().timestamp()}_{file.filename}")
             filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'qualifications', filename)
             file.save(filepath)
@@ -219,7 +253,7 @@ def add_qualification():
             flash('An error occurred while adding qualification.', 'danger')
             print(f"Add qualification error: {e}")
     
-    return redirect(url_for('profile.view', user_id=session['user_id']))
+    return redirect(url_for('profile.view_user_profile', user_id=session['user_id']))
 
 @profile_bp.route('/qualifications/<int:qual_id>/delete', methods=['POST'])
 @login_required
@@ -239,7 +273,7 @@ def delete_qualification(qual_id):
     else:
         flash('You do not have permission to delete this qualification.', 'danger')
     
-    return redirect(url_for('profile.view', user_id=session['user_id']))
+    return redirect(url_for('profile.view_user_profile', user_id=session['user_id']))
 
 @profile_bp.route('/follow/<int:user_id>', methods=['POST'])
 @login_required
@@ -279,7 +313,7 @@ def follow(user_id):
                 'new_follower',
                 'New Follower',
                 f"{session['user_name']} started following you",
-                url_for('profile.view', user_id=session['user_id'])
+                url_for('profile.view_user_profile', user_id=session['user_id'])
             )
         
         return jsonify({'success': True, 'message': 'Now following'})
@@ -344,10 +378,6 @@ def followers(user_id):
 @login_required
 def my_nfc():
     '''User's personal NFC/QR codes'''
-    from src.controllers.nfc_controller import generate_user_nfc_code, generate_event_qr_code
-    import qrcode
-    import io
-    import base64
     
     user_id = session.get('user_id')
     
@@ -410,3 +440,131 @@ def my_events():
     events = [r.event for r in registrations if r.event]
     
     return render_template('events/my-events.html', events=events)
+
+
+@profile_bp.route('/my-profile')
+@profile_bp.route('/profile')
+def my_profile():
+    """View current user's own profile"""
+    if 'user_id' not in session:
+        flash('Please login to view your profile', 'error')
+        return redirect(url_for('auth.login'))
+    
+    return redirect(url_for('profile.view_user_profile', user_id=session['user_id']))
+
+
+# ============================================================================
+# QR CODE ROUTES
+# ============================================================================
+
+@profile_bp.route('/qr-code')
+@profile_bp.route('/qr')
+def qr_code():
+    """Display user's QR code"""
+    if 'user_id' not in session:
+        flash('Please login to view your QR code', 'error')
+        return redirect(url_for('auth.login'))
+    
+    from utils.qr_generator import generate_profile_qr
+    from database import get_db_connection
+    
+    # Generate QR code
+    _, qr_url, profile_url = generate_profile_qr(session['user_id'])
+    
+    # Update user record with QR URL
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE users SET qr_code_url = %s WHERE id = %s
+    """, (profile_url, session['user_id']))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return render_template('profile/qr_code.html',
+                         qr_url=qr_url,
+                         profile_url=profile_url)
+
+
+@profile_bp.route('/generate-qr')
+def generate_qr():
+    """Generate/Regenerate QR code for user"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    from utils.qr_generator import generate_profile_qr
+    from database import get_db_connection
+    
+    try:
+        _, qr_url, profile_url = generate_profile_qr(session['user_id'])
+        
+        # Update database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE users SET qr_code_url = %s WHERE id = %s
+        """, (profile_url, session['user_id']))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'qr_url': qr_url,
+            'profile_url': profile_url
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@profile_bp.route('/download-qr')
+def download_qr():
+    """Download QR code as image"""
+    if 'user_id' not in session:
+        flash('Please login', 'error')
+        return redirect(url_for('auth.login'))
+    
+    from flask import send_file
+    
+    qr_path = f"static/qr_codes/user_{session['user_id']}_qr.png"
+    
+    if os.path.exists(qr_path):
+        return send_file(qr_path, 
+                        as_attachment=True,
+                        download_name=f"my_profile_qr.png")
+    else:
+        flash('QR code not found. Generating...', 'info')
+        return redirect(url_for('profile.qr_code'))
+
+
+@profile_bp.route('/qualifications')
+@login_required
+def qualifications():
+    """View and manage user qualifications"""
+    user_id = session.get('user_id')
+    
+    # Get user's qualifications
+    qualifications = execute_query("""
+        SELECT * FROM qualifications 
+        WHERE user_id = %s 
+        ORDER BY 
+            CASE verification_status 
+                WHEN 'verified' THEN 1 
+                WHEN 'pending' THEN 2 
+                WHEN 'rejected' THEN 3 
+            END,
+            year_obtained DESC
+    """, (user_id,), fetch=True) or []
+    
+    from datetime import datetime
+    current_year = datetime.now().year
+    
+    return render_template('profile/qualifications.html', 
+                         qualifications=qualifications,
+                         current_year=current_year)
+

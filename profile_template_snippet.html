@@ -1,0 +1,79 @@
+
+<!-- Add this to your profile template -->
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5><i class="fas fa-share-alt me-2"></i>Share Profile</h5>
+    </div>
+    <div class="card-body">
+        <!-- Shareable URL -->
+        <div class="mb-4">
+            <label class="form-label">Your Profile URL</label>
+            <div class="input-group">
+                <input type="text" class="form-control" id="profile-url" 
+                       value="{{ profile_url }}" readonly>
+                <button class="btn btn-outline-secondary" onclick="copyProfileURL()">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+            </div>
+            <small class="text-muted">Share this link to connect with others</small>
+        </div>
+
+        <!-- QR Code -->
+        <div class="text-center">
+            <h6>Your QR Code</h6>
+            <img src="data:image/png;base64,{{ qr_code }}" 
+                 alt="Profile QR Code" 
+                 class="img-fluid border rounded p-2"
+                 style="max-width: 300px;">
+            <p class="text-muted mt-2">
+                <i class="fas fa-info-circle"></i> 
+                Scan this code or tap your NFC-enabled device
+            </p>
+            <button class="btn btn-primary" onclick="downloadQR()">
+                <i class="fas fa-download me-2"></i>Download QR Code
+            </button>
+        </div>
+
+        <!-- NFC Data (hidden) -->
+        <input type="hidden" id="nfc-data" value="{{ nfc_data }}">
+    </div>
+</div>
+
+<script>
+function copyProfileURL() {
+    const urlInput = document.getElementById('profile-url');
+    urlInput.select();
+    document.execCommand('copy');
+    alert('Profile URL copied to clipboard!');
+}
+
+function downloadQR() {
+    const img = document.querySelector('img[alt="Profile QR Code"]');
+    const link = document.createElement('a');
+    link.download = 'my-profile-qr.png';
+    link.href = img.src;
+    link.click();
+}
+
+// NFC Write Function (if supported)
+async function writeNFC() {
+    if ('NDEFReader' in window) {
+        try {
+            const ndef = new NDEFWriter();
+            const nfcData = document.getElementById('nfc-data').value;
+            
+            await ndef.write({
+                records: [{ recordType: "text", data: nfcData }]
+            });
+            
+            alert('NFC tag written successfully!');
+        } catch (error) {
+            console.error('NFC write error:', error);
+            alert('Could not write to NFC tag: ' + error.message);
+        }
+    } else {
+        alert('NFC not supported on this device');
+    }
+}
+</script>

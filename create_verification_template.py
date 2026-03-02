@@ -1,0 +1,318 @@
+import os
+
+print("=" * 80)
+print("🔧 CREATING SYSTEM MANAGER VERIFICATION TEMPLATE")
+print("=" * 80)
+
+# Create directory
+os.makedirs('templates/system_manager', exist_ok=True)
+
+verification_template = '''{% extends "base.html" %}
+
+{% block title %}Verify Qualifications - System Manager{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-certificate me-2"></i>
+                        Qualification Verification Queue
+                    </h4>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Stats -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <h3>{{ pending_count }}</h3>
+                                    <p class="mb-0">Pending Review</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h3>{{ verified_count }}</h3>
+                                    <p class="mb-0">Verified</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body text-center">
+                                    <h3>{{ rejected_count }}</h3>
+                                    <p class="mb-0">Rejected</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter Tabs -->
+                    <ul class="nav nav-tabs mb-4" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#pending">
+                                <i class="fas fa-clock me-1"></i>Pending ({{ pending_count }})
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#verified">
+                                <i class="fas fa-check-circle me-1"></i>Verified ({{ verified_count }})
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#rejected">
+                                <i class="fas fa-times-circle me-1"></i>Rejected ({{ rejected_count }})
+                            </a>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content">
+                        
+                        <!-- Pending Qualifications -->
+                        <div id="pending" class="tab-pane fade show active">
+                            {% if pending_qualifications %}
+                                {% for qual in pending_qualifications %}
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <h5>
+                                                    <i class="fas fa-graduation-cap me-2 text-primary"></i>
+                                                    {{ qual.qualification_type|title }} in {{ qual.field_of_study }}
+                                                </h5>
+                                                <p class="mb-1">
+                                                    <strong>User:</strong> 
+                                                    <a href="{{ url_for('profile.view_user_profile', user_id=qual.user_id) }}">
+                                                        {{ qual.user_name }}
+                                                    </a>
+                                                </p>
+                                                <p class="mb-1">
+                                                    <strong>Institution:</strong> {{ qual.institution }}
+                                                </p>
+                                                <p class="mb-1">
+                                                    <strong>Year:</strong> {{ qual.year_obtained }}
+                                                </p>
+                                                <p class="mb-1">
+                                                    <strong>Submitted:</strong> {{ qual.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                                </p>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                {% if qual.document_path %}
+                                                <a href="{{ url_for('static', filename=qual.document_path) }}" 
+                                                   target="_blank" class="btn btn-info btn-sm mb-2">
+                                                    <i class="fas fa-file-download me-1"></i>View Document
+                                                </a>
+                                                {% else %}
+                                                <p class="text-muted">No document uploaded</p>
+                                                {% endif %}
+                                                
+                                                <div class="btn-group-vertical w-100">
+                                                    <button class="btn btn-success btn-sm" 
+                                                            onclick="verifyQualification({{ qual.id }}, 'verify')">
+                                                        <i class="fas fa-check me-1"></i>Verify
+                                                    </button>
+                                                    <button class="btn btn-danger btn-sm" 
+                                                            onclick="showRejectModal({{ qual.id }})">
+                                                        <i class="fas fa-times me-1"></i>Reject
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    No pending qualifications to review
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Verified Qualifications -->
+                        <div id="verified" class="tab-pane fade">
+                            {% if verified_qualifications %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Qualification</th>
+                                                <th>Institution</th>
+                                                <th>Verified By</th>
+                                                <th>Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for qual in verified_qualifications %}
+                                            <tr>
+                                                <td>
+                                                    <a href="{{ url_for('profile.view_user_profile', user_id=qual.user_id) }}">
+                                                        {{ qual.user_name }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ qual.qualification_type|title }} - {{ qual.field_of_study }}</td>
+                                                <td>{{ qual.institution }}</td>
+                                                <td>{{ qual.verifier_name }}</td>
+                                                <td>{{ qual.verified_at.strftime('%Y-%m-%d') }}</td>
+                                                <td>
+                                                    {% if qual.document_path %}
+                                                    <a href="{{ url_for('static', filename=qual.document_path) }}" 
+                                                       target="_blank" class="btn btn-sm btn-info">
+                                                        <i class="fas fa-file"></i>
+                                                    </a>
+                                                    {% endif %}
+                                                    <button class="btn btn-sm btn-warning" 
+                                                            onclick="verifyQualification({{ qual.id }}, 'unverify')">
+                                                        <i class="fas fa-undo"></i> Revoke
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    No verified qualifications yet
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Rejected Qualifications -->
+                        <div id="rejected" class="tab-pane fade">
+                            {% if rejected_qualifications %}
+                                {% for qual in rejected_qualifications %}
+                                <div class="card mb-3 border-danger">
+                                    <div class="card-body">
+                                        <h5>{{ qual.qualification_type|title }} - {{ qual.field_of_study }}</h5>
+                                        <p><strong>User:</strong> {{ qual.user_name }}</p>
+                                        <p><strong>Institution:</strong> {{ qual.institution }}</p>
+                                        <p class="text-danger">
+                                            <strong>Rejection Reason:</strong> {{ qual.rejection_reason }}
+                                        </p>
+                                        <p class="text-muted small">
+                                            Rejected on {{ qual.verified_at.strftime('%Y-%m-%d') }}
+                                        </p>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    No rejected qualifications
+                                </div>
+                            {% endif %}
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Reject Qualification</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="rejectForm">
+                    <input type="hidden" id="reject_qual_id">
+                    <div class="mb-3">
+                        <label for="rejection_reason" class="form-label">
+                            Reason for Rejection <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="rejection_reason" rows="4" 
+                                  placeholder="Explain why this qualification is being rejected..." required></textarea>
+                        <small class="text-muted">Be specific so the user can correct and resubmit</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="submitRejection()">
+                    <i class="fas fa-times me-1"></i>Reject Qualification
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showRejectModal(qualId) {
+    document.getElementById('reject_qual_id').value = qualId;
+    document.getElementById('rejection_reason').value = '';
+    new bootstrap.Modal(document.getElementById('rejectModal')).show();
+}
+
+function submitRejection() {
+    const qualId = document.getElementById('reject_qual_id').value;
+    const reason = document.getElementById('rejection_reason').value.trim();
+    
+    if (!reason) {
+        alert('Please provide a reason for rejection');
+        return;
+    }
+    
+    verifyQualification(qualId, 'reject', reason);
+    bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+}
+
+function verifyQualification(qualId, action, reason = '') {
+    if (action === 'verify' && !confirm('Are you sure you want to verify this qualification?')) {
+        return;
+    }
+    
+    if (action === 'unverify' && !confirm('Are you sure you want to revoke verification?')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('qualification_id', qualId);
+    formData.append('action', action);
+    if (reason) {
+        formData.append('rejection_reason', reason);
+    }
+    
+    fetch('{{ url_for("system_manager.verify_qualification") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message || 'Qualification updated successfully');
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Failed to update qualification'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the qualification');
+    });
+}
+</script>
+{% endblock %}
+'''
+
+with open('templates/system_manager/verify_qualifications.html', 'w', encoding='utf-8') as f:
+    f.write(verification_template)
+
+print("✅ Created: templates/system_manager/verify_qualifications.html")
+print("\n" + "=" * 80)
+print("✅ VERIFICATION TEMPLATE CREATED!")
+print("=" * 80)

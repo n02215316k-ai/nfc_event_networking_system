@@ -304,7 +304,7 @@ def create_forum():
             forum_id = db.execute_query('''
                 INSERT INTO forums (title, description, creator_id, is_public)
                 VALUES (%s, %s, %s, %s)
-            ''', (title, description, session['user_id'], is_public), return_lastrowid=True)
+            ''', (title, description, session['user_id'], is_public))
             
             # Add creator as admin
             db.execute_query('''

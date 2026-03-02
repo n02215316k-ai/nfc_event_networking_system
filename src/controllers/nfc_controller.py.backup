@@ -1,7 +1,37 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, flash
-from database.db import db
+from database import get_db_connection
 from datetime import datetime
 from functools import wraps
+
+
+# Database helper function
+def execute_query(query, params=None, fetch=False, fetchone=False):
+    """Execute database query with proper connection handling"""
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query, params or ())
+        
+        if fetch:
+            result = cursor.fetchone() if fetchone else cursor.fetchall()
+        else:
+            conn.commit()
+            result = cursor.lastrowid if cursor.lastrowid else True
+        
+        cursor.close()
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"Database error: {e}")
+        if conn:
+            conn.close()
+        return None
+
 
 nfc_bp = Blueprint('nfc', __name__)
 
@@ -75,7 +105,7 @@ def handle_networking_scan(scanner_id, scanned_user_id, scan_method):
             return jsonify({'success': False, 'message': 'Cannot scan your own badge'})
         
         # Get scanned user info
-        scanned_user = db.execute_query(
+        scanned_user = execute_query(
             "SELECT id, full_name, email, job_title, company FROM users WHERE id = %s",
             (scanned_user_id,),
             fetch=True,
@@ -86,7 +116,7 @@ def handle_networking_scan(scanner_id, scanned_user_id, scan_method):
             return jsonify({'success': False, 'message': 'User not found'})
         
         # Check if already connected
-        existing_connection = db.execute_query(
+        existing_connection = execute_query(
             "SELECT id FROM connections WHERE (user_id = %s AND connected_user_id = %s) OR (user_id = %s AND connected_user_id = %s)",
             (scanner_id, scanned_user_id, scanned_user_id, scanner_id),
             fetch=True,
@@ -106,21 +136,21 @@ def handle_networking_scan(scanner_id, scanned_user_id, scan_method):
             INSERT INTO connections (user_id, connected_user_id, connection_method, connected_at)
             VALUES (%s, %s, %s, NOW())
         """
-        db.execute_query(connection_sql, (scanner_id, scanned_user_id, scan_method))
+        execute_query(connection_sql, (scanner_id, scanned_user_id, scan_method))
         
         # Log the networking event
         log_sql = """
             INSERT INTO networking_logs (scanner_id, scanned_user_id, scan_method, scanned_at)
             VALUES (%s, %s, %s, NOW())
         """
-        db.execute_query(log_sql, (scanner_id, scanned_user_id, scan_method))
+        execute_query(log_sql, (scanner_id, scanned_user_id, scan_method))
         
         # Create notification for the scanned user
         notif_sql = """
             INSERT INTO notifications (user_id, message, type, created_at)
             VALUES (%s, %s, 'connection', NOW())
         """
-        db.execute_query(notif_sql, (scanned_user_id, f'New connection via {scan_method.upper()}'))
+        execute_query(notif_sql, (scanned_user_id, f'New connection via {scan_method.upper()}'))
         
         return jsonify({
             'success': True,
@@ -136,7 +166,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
     '''Handle event check-in/out by admin'''
     try:
         # Verify event exists
-        event = db.execute_query(
+        event = execute_query(
             "SELECT id, title FROM events WHERE id = %s",
             (event_id,),
             fetch=True,
@@ -147,7 +177,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
             return jsonify({'success': False, 'message': 'Event not found'})
         
         # Get attendee info
-        attendee = db.execute_query(
+        attendee = execute_query(
             "SELECT id, full_name, email FROM users WHERE id = %s",
             (attendee_id,),
             fetch=True,
@@ -158,7 +188,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
             return jsonify({'success': False, 'message': 'Attendee not found'})
         
         # Check if attendee is registered for event
-        registration = db.execute_query(
+        registration = execute_query(
             "SELECT id, status FROM event_registrations WHERE event_id = %s AND user_id = %s",
             (event_id, attendee_id),
             fetch=True,
@@ -178,7 +208,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
             WHERE event_id = %s AND user_id = %s 
             ORDER BY checked_in_at DESC LIMIT 1
         """
-        current_checkin = db.execute_query(checkin_sql, (event_id, attendee_id), fetch=True, fetchone=True)
+        current_checkin = execute_query(checkin_sql, (event_id, attendee_id), fetch=True, fetchone=True)
         
         action_taken = ''
         
@@ -188,7 +218,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
                 INSERT INTO event_checkins (event_id, user_id, checked_in_at, checked_in_by, scan_method)
                 VALUES (%s, %s, NOW(), %s, %s)
             """
-            db.execute_query(insert_checkin, (event_id, attendee_id, admin_id, scan_method))
+            execute_query(insert_checkin, (event_id, attendee_id, admin_id, scan_method))
             
             action_taken = 'checked_in'
             message = f'{attendee["full_name"]} checked in successfully'
@@ -200,7 +230,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
                 SET checked_out_at = NOW(), checked_out_by = %s
                 WHERE id = %s
             """
-            db.execute_query(update_checkout, (admin_id, current_checkin['id']))
+            execute_query(update_checkout, (admin_id, current_checkin['id']))
             
             action_taken = 'checked_out'
             message = f'{attendee["full_name"]} checked out successfully'
@@ -210,7 +240,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
             INSERT INTO admin_checkin_logs (event_id, admin_id, attendee_id, action, scan_method, timestamp)
             VALUES (%s, %s, %s, %s, %s, NOW())
         """
-        db.execute_query(log_admin, (event_id, admin_id, attendee_id, action_taken, scan_method))
+        execute_query(log_admin, (event_id, admin_id, attendee_id, action_taken, scan_method))
         
         # Get updated stats
         stats = get_event_checkin_stats(event_id)
@@ -229,7 +259,7 @@ def handle_checkin_scan(event_id, attendee_id, admin_id, scan_method):
 
 def get_event_checkin_stats(event_id):
     '''Get real-time check-in statistics'''
-    total_registered = db.execute_query(
+    total_registered = execute_query(
         "SELECT COUNT(*) as count FROM event_registrations WHERE event_id = %s",
         (event_id,),
         fetch=True,
@@ -241,14 +271,14 @@ def get_event_checkin_stats(event_id):
         FROM event_checkins 
         WHERE event_id = %s AND checked_in_at IS NOT NULL AND checked_out_at IS NULL
     """
-    checked_in = db.execute_query(checked_in_sql, (event_id,), fetch=True, fetchone=True)['count']
+    checked_in = execute_query(checked_in_sql, (event_id,), fetch=True, fetchone=True)['count']
     
     today_sql = """
         SELECT COUNT(*) as count 
         FROM event_checkins 
         WHERE event_id = %s AND DATE(checked_in_at) = CURDATE()
     """
-    total_checkins_today = db.execute_query(today_sql, (event_id,), fetch=True, fetchone=True)['count']
+    total_checkins_today = execute_query(today_sql, (event_id,), fetch=True, fetchone=True)['count']
     
     return {
         'total_registered': total_registered,
@@ -268,7 +298,7 @@ def event_checkin_log(event_id):
         return redirect(url_for('index'))
     
     # Get event details
-    event = db.execute_query(
+    event = execute_query(
         "SELECT * FROM events WHERE id = %s",
         (event_id,),
         fetch=True,
@@ -301,7 +331,7 @@ def api_checkin_log(event_id):
             ORDER BY ec.checked_in_at DESC
             LIMIT 50
         """
-        checkins = db.execute_query(log_sql, (event_id,), fetch=True)
+        checkins = execute_query(log_sql, (event_id,), fetch=True)
         
         # Get current stats
         stats = get_event_checkin_stats(event_id)
@@ -332,7 +362,7 @@ def my_connections():
         WHERE c.user_id = %s OR c.connected_user_id = %s
         ORDER BY c.connected_at DESC
     """
-    connections = db.execute_query(conn_sql, (user_id, user_id, user_id, user_id), fetch=True)
+    connections = execute_query(conn_sql, (user_id, user_id, user_id, user_id), fetch=True)
     
     return render_template('nfc/connections.html', connections=connections or [])
 
@@ -400,3 +430,227 @@ def generate_event_qr_code(event_id, user_id):
     except Exception as e:
         print(f"Error generating event QR code: {e}")
         return None
+
+
+@nfc_bp.route('/scan', methods=['POST'])
+def scan():
+    """Process NFC/QR scan"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    data = request.get_json()
+    scan_data = data.get('scan_data')
+    event_id = data.get('event_id')
+    
+    if not scan_data:
+        return jsonify({'error': 'No scan data provided'}), 400
+    
+    try:
+        import json
+        scan_info = json.loads(scan_data)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Record the scan
+        cursor.execute("""
+            INSERT INTO scans (scanner_id, scanned_user_id, event_id, created_at)
+            VALUES (%s, %s, %s, NOW())
+        """, (session['user_id'], scan_info.get('user_id'), event_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Scan recorded successfully',
+            'user_name': scan_info.get('name', 'Unknown')
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# ENHANCED SCANNING ROUTES
+# ============================================================================
+
+@nfc_bp.route('/scan-profile', methods=['POST'])
+def scan_profile():
+    """Process QR/NFC scan of user profile"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    from utils.qr_generator import verify_qr_data
+    from database import get_db_connection
+    
+    data = request.get_json()
+    scan_data = data.get('scan_data')
+    scan_method = data.get('scan_method', 'qr')  # 'qr' or 'nfc'
+    event_id = data.get('event_id')
+    
+    if not scan_data:
+        return jsonify({'error': 'No scan data provided'}), 400
+    
+    # Verify QR data
+    scan_info = verify_qr_data(scan_data)
+    
+    if not scan_info or scan_info['type'] != 'profile':
+        return jsonify({'error': 'Invalid QR code'}), 400
+    
+    scanned_user_id = scan_info['user_id']
+    
+    # Prevent self-scan
+    if scanned_user_id == session['user_id']:
+        return jsonify({'error': 'Cannot scan your own profile'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Get scanned user info
+        cursor.execute("""
+            SELECT id, full_name, email, profile_picture
+            FROM users WHERE id = %s
+        """, (scanned_user_id,))
+        
+        scanned_user = cursor.fetchone()
+        
+        if not scanned_user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Record scan in scan_history
+        cursor.execute("""
+            INSERT INTO scan_history 
+            (scanner_id, scanned_user_id, scan_method, scan_data, 
+             profile_url, event_id, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        """, (session['user_id'], scanned_user_id, scan_method, 
+              scan_data, scan_info['url'], event_id))
+        
+        scan_id = cursor.lastrowid
+        
+        # Also add to scans table for backwards compatibility
+        cursor.execute("""
+            INSERT INTO scans 
+            (scanner_id, scanned_user_id, event_id, scan_data, scan_method, created_at)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+        """, (session['user_id'], scanned_user_id, event_id, scan_data, scan_method))
+        
+        # Create connection if doesn't exist
+        cursor.execute("""
+            SELECT id FROM connections 
+            WHERE (user_id = %s AND connected_user_id = %s)
+               OR (user_id = %s AND connected_user_id = %s)
+        """, (session['user_id'], scanned_user_id, scanned_user_id, session['user_id']))
+        
+        if not cursor.fetchone():
+            cursor.execute("""
+                INSERT INTO connections 
+                (user_id, connected_user_id, connection_method, event_id, connected_at)
+                VALUES (%s, %s, %s, %s, NOW())
+            """, (session['user_id'], scanned_user_id, scan_method, event_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'scan_id': scan_id,
+            'user': {
+                'id': scanned_user['id'],
+                'name': scanned_user['full_name'],
+                'email': scanned_user['email'],
+                'profile_picture': scanned_user['profile_picture'],
+                'institution': scanned_user['institution'],
+                'position': scanned_user['position'],
+                'profile_url': scan_info['url']
+            },
+            'message': f'Successfully scanned {scanned_user["full_name"]}'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@nfc_bp.route('/recent-scans')
+def recent_scans():
+    """View recent scans"""
+    if 'user_id' not in session:
+        flash('Please login to view scans', 'error')
+        return redirect(url_for('auth.login'))
+    
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Get recent scans with user details
+    cursor.execute("""
+        SELECT sh.*, 
+               u.full_name, u.email, u.profile_picture,
+               e.title as event_title
+        FROM scan_history sh
+        JOIN users u ON sh.scanned_user_id = u.id
+        LEFT JOIN events e ON sh.event_id = e.id
+        WHERE sh.scanner_id = %s
+        ORDER BY sh.created_at DESC
+        LIMIT 50
+    """, (session['user_id'],))
+    
+    scans = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('nfc/recent_scans.html', scans=scans)
+
+
+@nfc_bp.route('/scan-stats')
+def scan_stats():
+    """Get scan statistics"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Total scans
+    cursor.execute("""
+        SELECT COUNT(*) as total FROM scan_history 
+        WHERE scanner_id = %s
+    """, (session['user_id'],))
+    total = cursor.fetchone()['total']
+    
+    # Scans by method
+    cursor.execute("""
+        SELECT scan_method, COUNT(*) as count 
+        FROM scan_history 
+        WHERE scanner_id = %s
+        GROUP BY scan_method
+    """, (session['user_id'],))
+    by_method = cursor.fetchall()
+    
+    # Recent scans (last 7 days)
+    cursor.execute("""
+        SELECT COUNT(*) as count 
+        FROM scan_history 
+        WHERE scanner_id = %s 
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    """, (session['user_id'],))
+    recent = cursor.fetchone()['count']
+    
+    cursor.close()
+    conn.close()
+    
+    return jsonify({
+        'total': total,
+        'by_method': by_method,
+        'recent_7_days': recent
+    })

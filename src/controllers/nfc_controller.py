@@ -48,7 +48,20 @@ def login_required(f):
 def scanner_page():
     '''NFC/QR Scanner page'''
     user_role = session.get('role', 'attendee')
-    return render_template('nfc/scanner.html', user_role=user_role)
+    
+    # Get user's events if they're an event creator/admin
+    user_events = []
+    if session.get('user_role') in ['event_admin', 'system_manager']:
+        user_events = execute_query("""
+            SELECT id, title, start_date, end_date, location
+            FROM events
+            WHERE creator_id = %s AND status = 'published'
+            ORDER BY start_date DESC
+        """, (session['user_id'],), fetch=True) or []
+    
+    event_id = request.args.get('event_id', type=int)
+    
+    return render_template('nfc/scanner.html', user_role=user_role, user_events=user_events)
 
 @nfc_bp.route('/scan', methods=['POST'])
 @login_required
@@ -430,3 +443,227 @@ def generate_event_qr_code(event_id, user_id):
     except Exception as e:
         print(f"Error generating event QR code: {e}")
         return None
+
+
+@nfc_bp.route('/scan', methods=['POST'])
+def scan():
+    """Process NFC/QR scan"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    data = request.get_json()
+    scan_data = data.get('scan_data')
+    event_id = data.get('event_id')
+    
+    if not scan_data:
+        return jsonify({'error': 'No scan data provided'}), 400
+    
+    try:
+        import json
+        scan_info = json.loads(scan_data)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Record the scan
+        cursor.execute("""
+            INSERT INTO scans (scanner_id, scanned_user_id, event_id, created_at)
+            VALUES (%s, %s, %s, NOW())
+        """, (session['user_id'], scan_info.get('user_id'), event_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Scan recorded successfully',
+            'user_name': scan_info.get('name', 'Unknown')
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# ENHANCED SCANNING ROUTES
+# ============================================================================
+
+@nfc_bp.route('/scan-profile', methods=['POST'])
+def scan_profile():
+    """Process QR/NFC scan of user profile"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    from utils.qr_generator import verify_qr_data
+    from database import get_db_connection
+    
+    data = request.get_json()
+    scan_data = data.get('scan_data')
+    scan_method = data.get('scan_method', 'qr')  # 'qr' or 'nfc'
+    event_id = data.get('event_id')
+    
+    if not scan_data:
+        return jsonify({'error': 'No scan data provided'}), 400
+    
+    # Verify QR data
+    scan_info = verify_qr_data(scan_data)
+    
+    if not scan_info or scan_info['type'] != 'profile':
+        return jsonify({'error': 'Invalid QR code'}), 400
+    
+    scanned_user_id = scan_info['user_id']
+    
+    # Prevent self-scan
+    if scanned_user_id == session['user_id']:
+        return jsonify({'error': 'Cannot scan your own profile'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Get scanned user info
+        cursor.execute("""
+            SELECT id, full_name, email, profile_picture
+            FROM users WHERE id = %s
+        """, (scanned_user_id,))
+        
+        scanned_user = cursor.fetchone()
+        
+        if not scanned_user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Record scan in scan_history
+        cursor.execute("""
+            INSERT INTO scan_history 
+            (scanner_id, scanned_user_id, scan_method, scan_data, 
+             profile_url, event_id, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        """, (session['user_id'], scanned_user_id, scan_method, 
+              scan_data, scan_info['url'], event_id))
+        
+        scan_id = cursor.lastrowid
+        
+        # Also add to scans table for backwards compatibility
+        cursor.execute("""
+            INSERT INTO scans 
+            (scanner_id, scanned_user_id, event_id, scan_data, scan_method, created_at)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+        """, (session['user_id'], scanned_user_id, event_id, scan_data, scan_method))
+        
+        # Create connection if doesn't exist
+        cursor.execute("""
+            SELECT id FROM connections 
+            WHERE (user_id = %s AND connected_user_id = %s)
+               OR (user_id = %s AND connected_user_id = %s)
+        """, (session['user_id'], scanned_user_id, scanned_user_id, session['user_id']))
+        
+        if not cursor.fetchone():
+            cursor.execute("""
+                INSERT INTO connections 
+                (user_id, connected_user_id, connection_method, event_id, connected_at)
+                VALUES (%s, %s, %s, %s, NOW())
+            """, (session['user_id'], scanned_user_id, scan_method, event_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'scan_id': scan_id,
+            'user': {
+                'id': scanned_user['id'],
+                'name': scanned_user['full_name'],
+                'email': scanned_user['email'],
+                'profile_picture': scanned_user['profile_picture'],
+                'institution': scanned_user['institution'],
+                'position': scanned_user['position'],
+                'profile_url': scan_info['url']
+            },
+            'message': f'Successfully scanned {scanned_user["full_name"]}'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@nfc_bp.route('/recent-scans')
+def recent_scans():
+    """View recent scans"""
+    if 'user_id' not in session:
+        flash('Please login to view scans', 'error')
+        return redirect(url_for('auth.login'))
+    
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Get recent scans with user details
+    cursor.execute("""
+        SELECT sh.*, 
+               u.full_name, u.email, u.profile_picture,
+               e.title as event_title
+        FROM scan_history sh
+        JOIN users u ON sh.scanned_user_id = u.id
+        LEFT JOIN events e ON sh.event_id = e.id
+        WHERE sh.scanner_id = %s
+        ORDER BY sh.created_at DESC
+        LIMIT 50
+    """, (session['user_id'],))
+    
+    scans = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('nfc/recent_scans.html', scans=scans)
+
+
+@nfc_bp.route('/scan-stats')
+def scan_stats():
+    """Get scan statistics"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    from database import get_db_connection
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Total scans
+    cursor.execute("""
+        SELECT COUNT(*) as total FROM scan_history 
+        WHERE scanner_id = %s
+    """, (session['user_id'],))
+    total = cursor.fetchone()['total']
+    
+    # Scans by method
+    cursor.execute("""
+        SELECT scan_method, COUNT(*) as count 
+        FROM scan_history 
+        WHERE scanner_id = %s
+        GROUP BY scan_method
+    """, (session['user_id'],))
+    by_method = cursor.fetchall()
+    
+    # Recent scans (last 7 days)
+    cursor.execute("""
+        SELECT COUNT(*) as count 
+        FROM scan_history 
+        WHERE scanner_id = %s 
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    """, (session['user_id'],))
+    recent = cursor.fetchone()['count']
+    
+    cursor.close()
+    conn.close()
+    
+    return jsonify({
+        'total': total,
+        'by_method': by_method,
+        'recent_7_days': recent
+    })

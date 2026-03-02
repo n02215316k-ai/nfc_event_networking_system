@@ -134,7 +134,7 @@ def signup():
             user_id = execute_query('''
                 INSERT INTO users (email, password_hash, full_name, phone_number, role)
                 VALUES (%s, %s, %s, %s, 'user')
-            ''', (email, password_hash, full_name, phone_number), return_lastrowid=True)
+            ''', (email, password_hash, full_name, phone_number))
             
             # Auto-login
             session['user_id'] = user_id

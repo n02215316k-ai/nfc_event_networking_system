@@ -70,7 +70,7 @@ class Database:
     
     def insert(self, query, params=None):
         """Insert and return last insert id"""
-        return self.execute_query(query, params, return_lastrowid=True)
+        return self.execute_query(query, params)
     
     def update(self, query, params=None):
         """Update records"""

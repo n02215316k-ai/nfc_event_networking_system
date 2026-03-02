@@ -1,0 +1,25 @@
+
+# Add this to your profile view function
+
+from flask import request, url_for
+
+# In the view_user_profile function, add:
+profile_url = request.url_root.rstrip('/') + url_for('profile.view_user_profile', user_id=user['id'])
+nfc_data = f"USER:{user['id']}|URL:{profile_url}"
+
+# Generate QR code with the profile URL
+import qrcode
+from io import BytesIO
+import base64
+
+qr = qrcode.QRCode(version=1, box_size=10, border=5)
+qr.add_data(profile_url)  # Use full URL
+qr.make(fit=True)
+
+img = qr.make_image(fill_color="black", back_color="white")
+buffer = BytesIO()
+img.save(buffer, format='PNG')
+qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+# Pass to template:
+# profile_url=profile_url, nfc_data=nfc_data, qr_code=qr_code_base64

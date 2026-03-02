@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4><i class="fas fa-history"></i> Recent Scans</h4>
+        </div>
+        <div class="card-body">
+            {% if scans %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Person</th>
+                            <th>Method</th>
+                            <th>Event</th>
+                            <th>When</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for scan in scans %}
+                        <tr>
+                            <td>
+                                <a href="{{ scan.profile_url if scan.profile_url else url_for('profile.view_user_profile', user_id=scan.scanned_user_id) }}" class="text-decoration-none">
+                                    {% if scan.profile_picture %}
+                                    <img src="{{ url_for('static', filename=scan.profile_picture) }}" 
+                                         class="rounded-circle" style="width: 30px; height: 30px; object-fit: cover;">
+                                    {% else %}
+                                    <div class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center"
+                                         style="width: 30px; height: 30px; font-size: 14px;">
+                                        {{ scan.full_name[0] if scan.full_name else 'U' }}
+                                    </div>
+                                    {% endif %}
+                                    <strong>{{ scan.full_name }}</strong>
+                                </a>
+                                <br>
+                                <small class="text-muted">{{ scan.email }}</small>
+                            </td>
+                            <td>
+                                {% if scan.scan_method == 'qr' %}
+                                <span class="badge badge-info"><i class="fas fa-qrcode"></i> QR</span>
+                                {% elif scan.scan_method == 'nfc' %}
+                                <span class="badge badge-success"><i class="fas fa-wifi"></i> NFC</span>
+                                {% else %}
+                                <span class="badge badge-secondary"><i class="fas fa-hand-pointer"></i> Manual</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if scan.event_title %}
+                                <small>{{ scan.event_title }}</small>
+                                {% else %}
+                                <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ scan.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+                            </td>
+                            <td>
+                                <a href="{{ scan.profile_url if scan.profile_url else url_for('profile.view_user_profile', user_id=scan.scanned_user_id) }}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-user"></i> View
+                                </a>
+                                <a href="{{ url_for('messaging.compose') }}?recipient={{ scan.scanned_user_id }}" 
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-envelope"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-qrcode fa-3x mb-3"></i>
+                <h5>No Scans Yet</h5>
+                <p>Start scanning QR codes or NFC tags to build your network!</p>
+                <a href="{{ url_for('nfc.scanner_page') }}" class="btn btn-primary">
+                    <i class="fas fa-camera"></i> Start Scanning
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="text-center mt-3">
+        <a href="{{ url_for('nfc.scanner_page') }}" class="btn btn-primary">
+            <i class="fas fa-camera"></i> Back to Scanner
+        </a>
+    </div>
+</div>
+{% endblock %}

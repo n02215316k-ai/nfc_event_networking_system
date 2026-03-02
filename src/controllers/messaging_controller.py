@@ -257,3 +257,36 @@ def send_message_alias():
     from flask import request
     # Forward the POST request
     return send_message()
+
+
+@messaging_bp.route('/send', methods=['POST'])
+def send():
+    """Send a message (API endpoint)"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    recipient_id = request.form.get('recipient_id')
+    subject = request.form.get('subject', '')
+    message = request.form.get('message')
+    
+    if not all([recipient_id, message]):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO messages (sender_id, recipient_id, subject, message, sent_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (session['user_id'], recipient_id, subject, message))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Message sent'})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
